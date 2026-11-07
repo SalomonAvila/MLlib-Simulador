@@ -1,12 +1,15 @@
-<!DOCTYPE html>
 <!--
 /*******************************************
--Nombres: Salomon Avila, Gabriel Jaramillo
+-Nombre: Salomon Avila
 -Materia: Estructuras de datos
 -Pontificia Universidad Javeriana
 -Taller 02
--Temas: TADs, implementacion
+-Temas: TADs (arbol binario de decision), implementacion
+        de arboles de decision de Spark MLlib, simulacion
 *******************************************/
+-->
+<!DOCTYPE html>
+<!--
   Simulador de Árboles de Decisión — Spark MLlib (RDD API)
   Referencia: https://spark.apache.org/docs/latest/mllib-decision-tree.html
   HTML estático: Three.js (CDN) + CSS Glassmorphism / Neumorfismo.
@@ -16,7 +19,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Simulador Árboles MLlib</title>
-<meta name="author" content="Salomon Avila, Gabriel Jaramillo">
+<meta name="author" content="Salomon Avila">
 <meta name="description" content="Simulador didáctico de árboles de decisión de Spark MLlib en Three.js con estilos glassmorphism y neumorfismo.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -100,7 +103,7 @@ body{
 .btn-row{display:flex;flex-wrap:wrap;gap:12px}
 
 /* ---------- Header ---------- */
-header.hero{display:grid;grid-template-columns:1.25fr 1fr;gap:22px;align-items:stretch}
+header.hero{display:grid;grid-template-columns:1fr;gap:22px;align-items:stretch}
 .hero-main{padding:30px 32px;display:flex;flex-direction:column;justify-content:center}
 .eyebrow{font:600 .75rem var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
 h1{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.08;margin:.4rem 0 .6rem;letter-spacing:-.03em}
@@ -108,9 +111,6 @@ h1 span{background:linear-gradient(90deg,var(--accent),var(--accent-2));-webkit-
 .lead{color:var(--muted);font-size:1.02rem;max-width:58ch;margin:0}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
 .chip{font:500 .78rem 'Inter';padding:.42rem .8rem;border-radius:999px;background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.8);color:#3b4370}
-.membrete{padding:22px 24px;font-family:var(--mono);font-size:.84rem;white-space:pre;overflow:auto;color:#2a3160;display:flex;flex-direction:column;justify-content:center}
-.membrete .c{color:#8a91b8}
-.membrete b{color:var(--accent);font-weight:600}
 
 /* ---------- Tabs ---------- */
 nav.tabs{position:sticky;top:10px;z-index:30;margin:22px 0;padding:10px;display:flex;gap:10px;flex-wrap:wrap}
@@ -247,8 +247,7 @@ footer a{color:var(--accent)}
 }
 @media (max-width:560px){
   .hero-main{padding:22px}
-  .membrete{font-size:.7rem}
-  .card{padding:18px}
+    .card{padding:18px}
   nav.tabs{top:6px}
   nav.tabs .btn{flex:1 1 40%;font-size:.8rem;padding:.75rem .5rem}
   .ov-tr{display:none}
@@ -276,13 +275,6 @@ footer a{color:var(--accent)}
         <span class="chip">Three.js 3D</span>
       </div>
     </div>
-    <div class="glass membrete" aria-label="Membrete del taller"><span class="c">/*******************************************</span>
-<span>-Nombres: <b>Salomon Avila, Gabriel Jaramillo</b></span>
-<span>-Materia: <b>Estructuras de datos</b></span>
-<span>-<b>Pontificia Universidad Javeriana</b></span>
-<span>-Taller <b>02</b></span>
-<span>-Temas: <b>TADs, implementacion</b></span>
-<span class="c">*******************************************/</span></div>
   </header>
 
   <!-- ===================== NAVEGACIÓN ===================== -->
@@ -633,7 +625,7 @@ footer a{color:var(--accent)}
   </section>
 
   <footer class="glass">
-    <span>Salomon Avila · Gabriel Jaramillo — Estructuras de datos · Pontificia Universidad Javeriana · Taller 02</span>
+    <span>Salomon Avila — Estructuras de datos · Pontificia Universidad Javeriana · Taller 02</span>
     <span>Basado en la guía <a href="https://spark.apache.org/docs/latest/mllib-decision-tree.html" target="_blank" rel="noopener">Decision Trees – RDD-based API</a></span>
   </footer>
 </div>
@@ -642,13 +634,6 @@ footer a{color:var(--accent)}
      LÓGICA (script clásico): datos, algoritmo de MLlib, didáctica, carga
      ===================================================================== -->
 <script>
-/*******************************************
--Nombres: Salomon Avila, Gabriel Jaramillo
--Materia: Estructuras de datos
--Pontificia Universidad Javeriana
--Taller 02
--Temas: TADs, implementacion
-*******************************************/
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
