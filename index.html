@@ -158,6 +158,7 @@ nav.tabs .btn.on .n{background:var(--accent-soft);border-color:#BFDBFE;color:var
 .formula{font-family:'Cambria Math','STIX Two Math',Georgia,serif;font-size:1.06rem;padding:14px 16px;margin:10px 0;text-align:center;overflow-x:auto;color:var(--ink)}
 .formula sub,.formula sup{font-size:.72em}
 .mono{font-family:var(--mono)}
+#codePath .mono,.card p .mono,.card li .mono{overflow-wrap:anywhere}
 pre.code{font:400 .8rem/1.55 var(--mono);padding:16px 18px;margin:10px 0 0;overflow:auto;max-height:420px;color:var(--ink-2);white-space:pre}
 .kw{color:#1D4ED8;font-weight:600}.st{color:#B45309}.cm{color:var(--muted);font-style:italic}.nu{color:#047857}
 table.tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:.88rem}
@@ -298,7 +299,7 @@ footer{margin-top:36px;padding:18px 22px;display:flex;flex-wrap:wrap;justify-con
     <div class="glass hero-main">
       <div class="eyebrow">Spark MLlib · spark.mllib.tree</div>
       <h1>Simulador de <span>Árboles de Decisión</span></h1>
-      <p class="lead">Explora cómo MLlib construye un árbol de decisión distribuido: impureza, ganancia de información, candidatos de split por <em>bins</em>, reglas de parada y comportamiento del entrenamiento por niveles frente a la carga.</p>
+      <p class="lead">Explora cómo MLlib construye un árbol de decisión distribuido: impureza, ganancia de información, candidatos de split por <em>bins</em>, reglas de parada y comportamiento del entrenamiento distribuido frente a la carga.</p>
       <div class="chips">
         <span class="chip">Clasificación binaria y multiclase</span>
         <span class="chip">Regresión</span>
@@ -318,101 +319,115 @@ footer{margin-top:36px;padding:18px 22px;display:flex;flex-wrap:wrap;justify-con
 
   <!-- ===================== 1. CONCEPTUAL ===================== -->
   <section class="panel active" id="conceptual">
-    <div class="section-title"><h2>Marco conceptual</h2><p>Lo que dice la guía de MLlib, organizado.</p></div>
+    <div class="section-title"><h2>Marco conceptual</h2><p>Decision Trees – RDD-based API · Spark 4.3.0, según la guía oficial.</p></div>
     <div class="grid g2">
       <article class="glass card">
-        <h3>¿Qué es un árbol de decisión en MLlib?</h3>
-        <p>Los árboles de decisión y sus ensambles son métodos populares para clasificación y regresión. Son fáciles de interpretar, manejan <em>features</em> categóricas, se extienden a multiclase, <strong>no requieren escalar las features</strong> y capturan no linealidades e interacciones entre variables.</p>
-        <p><code class="mono">spark.mllib</code> soporta árboles para <strong>clasificación binaria y multiclase</strong> y para <strong>regresión</strong>, con features continuas y categóricas. La implementación particiona los datos <strong>por filas</strong>, lo que permite entrenar de forma distribuida con millones o miles de millones de instancias.</p>
+        <h3>Árboles de decisión en <span class="mono">spark.mllib</span></h3>
+        <p>Los árboles de decisión y sus ensambles son métodos populares para las tareas de <strong>clasificación y regresión</strong>. Se usan ampliamente porque son fáciles de interpretar, manejan features categóricas, se extienden a clasificación multiclase, <strong>no requieren escalar las features</strong> y capturan no linealidades e interacciones entre features. Los ensambles de árboles, como <em>random forests</em> y <em>boosting</em>, están entre los mejores métodos para clasificación y regresión.</p>
+        <p><code class="mono">spark.mllib</code> soporta árboles de decisión para <strong>clasificación binaria y multiclase</strong> y para <strong>regresión</strong>, con features continuas y categóricas. La implementación <strong>particiona los datos por filas</strong>, lo que permite entrenamiento distribuido con millones de instancias.</p>
+        <p style="font-size:.86rem;color:var(--muted)">Los ensambles (Random Forests y Gradient-Boosted Trees) se describen en la guía de Ensembles.</p>
       </article>
       <article class="glass card">
         <h3>Algoritmo básico</h3>
-        <p>Es un algoritmo <strong>voraz (greedy)</strong> que realiza un <strong>particionamiento binario recursivo</strong> del espacio de features. Cada hoja predice la misma etiqueta. En cada nodo se elige el split <em>s</em> que maximiza la ganancia de información sobre el conjunto de datos <em>D</em> del nodo:</p>
+        <p>El árbol de decisión es un <strong>algoritmo voraz</strong> que realiza un <strong>particionamiento binario recursivo</strong> del espacio de features. El árbol predice la misma etiqueta para cada partición inferior (hoja). Cada partición se elige de forma voraz seleccionando el mejor split de un conjunto de splits posibles, para <strong>maximizar la ganancia de información</strong> en el nodo. Es decir, el split de cada nodo se elige del conjunto</p>
         <div class="formula neu-in">argmax<sub>s</sub> IG(D, s)</div>
-        <div class="formula neu-in">IG(D,s) = Impureza(D) − <sup>N<sub>izq</sub></sup>⁄<sub>N</sub>·Impureza(D<sub>izq</sub>) − <sup>N<sub>der</sub></sup>⁄<sub>N</sub>·Impureza(D<sub>der</sub>)</div>
-        <p style="font-size:.86rem;color:var(--muted)">N es el tamaño del conjunto del nodo y D<sub>izq</sub>, D<sub>der</sub> son las particiones que produce el split.</p>
+        <p style="font-size:.86rem;color:var(--muted)">donde IG(D, s) es la ganancia de información al aplicar el split <em>s</em> al conjunto de datos <em>D</em>.</p>
       </article>
 
       <article class="glass card span2">
-        <h3>Medidas de impureza del nodo</h3>
-        <p>La impureza mide la homogeneidad de las etiquetas en el nodo. MLlib ofrece dos para clasificación y una para regresión (f<sub>i</sub> es la frecuencia de la etiqueta <em>i</em>, C el número de clases, y<sub>i</sub> la etiqueta de la instancia, μ = (1/N)Σy<sub>i</sub>).</p>
+        <h3>Impureza del nodo y ganancia de información</h3>
+        <p>La <strong>impureza</strong> del nodo mide la homogeneidad de las etiquetas en el nodo. La implementación ofrece dos medidas para clasificación (impureza de Gini y entropía) y una para regresión (varianza).</p>
         <div class="tbl-wrap"><table class="tbl">
-          <thead><tr><th>Impureza</th><th>Tarea</th><th>Fórmula</th><th>Idea</th></tr></thead>
+          <thead><tr><th>Impureza</th><th>Tarea</th><th>Fórmula</th><th>Descripción</th></tr></thead>
           <tbody>
-            <tr><td><code>gini</code></td><td><span class="tag">Clasificación</span></td><td class="formula" style="text-align:left;padding:4px 0">Σ<sub>i=1..C</sub> f<sub>i</sub>(1 − f<sub>i</sub>)</td><td>Probabilidad de clasificar mal una instancia elegida al azar.</td></tr>
-            <tr><td><code>entropy</code></td><td><span class="tag">Clasificación</span></td><td class="formula" style="text-align:left;padding:4px 0">Σ<sub>i=1..C</sub> −f<sub>i</sub> log(f<sub>i</sub>)</td><td>Desorden / información esperada (aquí se usa log₂).</td></tr>
-            <tr><td><code>variance</code></td><td><span class="tag p">Regresión</span></td><td class="formula" style="text-align:left;padding:4px 0">(1/N) Σ<sub>i=1..N</sub> (y<sub>i</sub> − μ)<sup>2</sup></td><td>Dispersión de la etiqueta continua.</td></tr>
+            <tr><td><code>gini</code></td><td><span class="tag">Clasificación</span></td><td class="formula" style="text-align:left;padding:4px 0">Σ<sub>i=1..C</sub> f<sub>i</sub>(1 − f<sub>i</sub>)</td><td>f<sub>i</sub> es la frecuencia de la etiqueta <em>i</em> en el nodo y C es el número de etiquetas únicas.</td></tr>
+            <tr><td><code>entropy</code></td><td><span class="tag">Clasificación</span></td><td class="formula" style="text-align:left;padding:4px 0">Σ<sub>i=1..C</sub> −f<sub>i</sub> log(f<sub>i</sub>)</td><td>f<sub>i</sub> es la frecuencia de la etiqueta <em>i</em> en el nodo y C es el número de etiquetas únicas.</td></tr>
+            <tr><td><code>variance</code></td><td><span class="tag p">Regresión</span></td><td class="formula" style="text-align:left;padding:4px 0">(1/N) Σ<sub>i=1..N</sub> (y<sub>i</sub> − μ)<sup>2</sup></td><td>y<sub>i</sub> es la etiqueta de una instancia, N el número de instancias y μ la media, μ = (1/N) Σ<sub>i=1..N</sub> y<sub>i</sub>.</td></tr>
           </tbody>
         </table></div>
+        <p style="margin-top:14px">La <strong>ganancia de información</strong> es la diferencia entre la impureza del nodo padre y la suma ponderada de las impurezas de los dos nodos hijos. Si un split <em>s</em> divide el conjunto <em>D</em> de tamaño N en D<sub>izq</sub> y D<sub>der</sub>, de tamaños N<sub>izq</sub> y N<sub>der</sub>:</p>
+        <div class="formula neu-in">IG(D,s) = Impureza(D) − <sup>N<sub>izq</sub></sup>⁄<sub>N</sub>·Impureza(D<sub>izq</sub>) − <sup>N<sub>der</sub></sup>⁄<sub>N</sub>·Impureza(D<sub>der</sub>)</div>
       </article>
 
       <article class="glass card">
-        <h3>Candidatos de split</h3>
-        <p><strong>Features continuas.</strong> En datasets pequeños en una sola máquina se suelen usar como candidatos los valores únicos ordenados. En datos distribuidos y grandes, ordenar es costoso, por eso MLlib calcula un conjunto <strong>aproximado de cuantiles</strong> sobre una <strong>muestra</strong> de los datos. Los splits ordenados crean <em>bins</em>; su número máximo se controla con <code class="mono">maxBins</code> (el número de bins nunca supera el número de instancias, caso raro porque el valor por defecto es 32).</p>
-        <p><strong>Features categóricas.</strong> Con M valores posibles hay 2<sup>M−1</sup>−1 particiones. Para <strong>clasificación binaria y regresión</strong> se reduce a <strong>M−1</strong> candidatos ordenando las categorías por la etiqueta promedio. En <strong>multiclase</strong> se usan las 2<sup>M−1</sup>−1 particiones cuando es posible; si no, se ordenan las categorías por impureza y se consideran M−1 splits.</p>
+        <h3>Candidatos de split · features continuas</h3>
+        <p>En datasets pequeños, en implementaciones de una sola máquina, los candidatos de split de cada feature continua suelen ser sus <strong>valores únicos</strong>. Algunas implementaciones ordenan los valores y usan los valores únicos ordenados como candidatos para acelerar el cálculo.</p>
+        <p>Ordenar es costoso en datasets grandes y distribuidos. Esta implementación calcula un conjunto <strong>aproximado</strong> de candidatos mediante un <strong>cálculo de cuantiles sobre una fracción muestreada</strong> de los datos. Los splits ordenados crean <em>bins</em>, y su número máximo se especifica con el parámetro <code class="mono">maxBins</code>.</p>
+        <p style="font-size:.86rem;color:var(--muted)">El número de bins no puede ser mayor que el número de instancias N (escenario raro, pues el valor por defecto de maxBins es 32). El algoritmo reduce automáticamente los bins si no se cumple esta condición.</p>
       </article>
       <article class="glass card">
-        <h3>Reglas de parada</h3>
-        <p>La construcción recursiva se detiene en un nodo cuando se cumple alguna de estas condiciones:</p>
+        <h3>Candidatos de split · features categóricas</h3>
+        <p>Para una feature categórica con M valores posibles (categorías) habría <strong>2<sup>M−1</sup>−1</strong> candidatos. En <strong>clasificación binaria (0/1) y regresión</strong> se reducen a <strong>M−1</strong> ordenando las categorías por la etiqueta promedio (ver la sección 9.2.4 de <em>Elements of Statistical Learning</em>).</p>
+        <p><strong>Ejemplo:</strong> clasificación binaria con una feature categórica de categorías A, B y C, cuyas proporciones de etiqueta 1 son 0.2, 0.6 y 0.4. Las categorías se ordenan como <span class="mono">A, C, B</span> y los dos candidatos son <span class="mono">A | C, B</span> y <span class="mono">A, C | B</span>, donde «|» indica el split.</p>
+        <p>En <strong>multiclase</strong> se usan las 2<sup>M−1</sup>−1 particiones siempre que es posible. Cuando 2<sup>M−1</sup>−1 es mayor que <code class="mono">maxBins</code>, se usa un método (heurístico) similar: las M categorías se ordenan por impureza y se consideran los M−1 candidatos resultantes.</p>
+      </article>
+
+      <article class="glass card">
+        <h3>Regla de parada</h3>
+        <p>La construcción recursiva del árbol se detiene en un nodo cuando se cumple alguna de estas condiciones:</p>
         <ol class="steps">
-          <li class="neu-in">La profundidad del nodo es igual a <code class="mono">maxDepth</code>.</li>
+          <li class="neu-in">La profundidad del nodo es igual al parámetro de entrenamiento <code class="mono">maxDepth</code>.</li>
           <li class="neu-in">Ningún candidato de split produce una ganancia de información mayor que <code class="mono">minInfoGain</code>.</li>
-          <li class="neu-in">Ningún candidato de split produce nodos hijos que tengan cada uno al menos <code class="mono">minInstancesPerNode</code> instancias.</li>
+          <li class="neu-in">Ningún candidato de split produce nodos hijos que tengan cada uno al menos <code class="mono">minInstancesPerNode</code> instancias de entrenamiento.</li>
         </ol>
+      </article>
+      <article class="glass card">
+        <h3>Consejos de uso · especificación del problema</h3>
+        <p>Los parámetros se listan aproximadamente en orden de importancia descendente. Quien empieza debería considerar sobre todo esta sección y el parámetro <code class="mono">maxDepth</code>. Estos parámetros describen el problema y el dataset: deben especificarse y <strong>no requieren ajuste</strong>.</p>
+        <ul class="clean">
+          <li><code class="mono">algo</code>: tipo de árbol, <em>Classification</em> o <em>Regression</em>.</li>
+          <li><code class="mono">numClasses</code>: número de clases (solo clasificación).</li>
+          <li><code class="mono">categoricalFeaturesInfo</code>: qué features son categóricas y cuántos valores puede tomar cada una, como un mapa de índice de feature → aridad. Las features fuera del mapa se tratan como continuas. Ej.: <code class="mono">Map(0 -&gt; 2, 4 -&gt; 10)</code> indica que la feature 0 es binaria (0 o 1) y que la 4 tiene 10 categorías ({0, 1, …, 9}). Los índices empiezan en 0.</li>
+        </ul>
+        <p style="font-size:.86rem;color:var(--muted)">No es obligatorio especificar <code class="mono">categoricalFeaturesInfo</code>: el algoritmo corre igual y puede dar resultados razonables, pero el desempeño debería ser mejor si las features categóricas se designan correctamente.</p>
       </article>
 
       <article class="glass card span2">
-        <h3>Parámetros (consejos de uso)</h3>
+        <h3>Criterios de parada y parámetros ajustables</h3>
+        <p style="font-size:.9rem">Al ajustar estos parámetros, valida sobre datos de prueba separados para evitar el sobreajuste. Los valores por defecto son los de <code class="mono">DecisionTree.trainClassifier</code> / <code class="mono">trainRegressor</code> en Python.</p>
         <div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>Parámetro</th><th>Grupo</th><th>Descripción</th><th>Por defecto</th></tr></thead>
           <tbody>
-            <tr><td><code>algo</code></td><td><span class="tag">Problema</span></td><td>Tipo de árbol: <em>Classification</em> o <em>Regression</em>.</td><td>—</td></tr>
-            <tr><td><code>numClasses</code></td><td><span class="tag">Problema</span></td><td>Número de clases (solo clasificación).</td><td>—</td></tr>
-            <tr><td><code>categoricalFeaturesInfo</code></td><td><span class="tag">Problema</span></td><td>Mapa índice de feature → aridad. Ej. <code>{0: 2, 4: 10}</code>: la feature 0 es binaria (0,1) y la 4 tiene 10 categorías (0..9). Las no listadas se tratan como continuas.</td><td>{}</td></tr>
-            <tr><td><code>maxDepth</code></td><td><span class="tag p">Parada</span></td><td>Profundidad máxima. Más profundo ⇒ más expresivo, más costoso y más riesgo de sobreajuste.</td><td>5 (máx. 30)</td></tr>
-            <tr><td><code>minInstancesPerNode</code></td><td><span class="tag p">Parada</span></td><td>Cada hijo de un split debe recibir al menos este número de instancias.</td><td>1</td></tr>
-            <tr><td><code>minInfoGain</code></td><td><span class="tag p">Parada</span></td><td>Un nodo solo se divide si la ganancia supera este valor.</td><td>0.0</td></tr>
-            <tr><td><code>maxBins</code></td><td><span class="tag g">Ajuste</span></td><td>Bins al discretizar features continuas. Debe ser ≥ al número máximo de categorías de cualquier feature categórica. Más bins ⇒ splits más finos, más cómputo y comunicación.</td><td>32</td></tr>
-            <tr><td><code>maxMemoryInMB</code></td><td><span class="tag g">Ajuste</span></td><td>Memoria para agregar estadísticas. Más memoria ⇒ más nodos por pasada sobre los datos ⇒ menos pasadas (y más comunicación por pasada).</td><td>256</td></tr>
-            <tr><td><code>subsamplingRate</code></td><td><span class="tag g">Ajuste</span></td><td>Fracción de datos usada para aprender el árbol (útil sobre todo en ensambles).</td><td>1.0</td></tr>
-            <tr><td><code>impurity</code></td><td><span class="tag g">Ajuste</span></td><td>Medida de impureza; debe ser coherente con <code>algo</code>.</td><td>gini / variance</td></tr>
-            <tr><td><code>useNodeIdCache</code></td><td><span class="tag">Caché</span></td><td>Guarda en un RDD el id de nodo de cada instancia y evita enviar el modelo actual a los ejecutores en cada iteración. Útil con árboles profundos.</td><td>false</td></tr>
-            <tr><td><code>checkpointDir</code> / <code>checkpointInterval</code></td><td><span class="tag">Caché</span></td><td>Checkpoint del RDD de ids de nodo para cortar linajes largos. Intervalos muy bajos aumentan escrituras a HDFS; muy altos pueden fallar si ejecutores caen.</td><td>— / 10</td></tr>
+            <tr><td><code>maxDepth</code></td><td><span class="tag p">Parada</span></td><td>Profundidad máxima del árbol. Los árboles más profundos son más expresivos (potencialmente más precisos), pero más costosos de entrenar y más propensos al sobreajuste.</td><td>5</td></tr>
+            <tr><td><code>minInstancesPerNode</code></td><td><span class="tag p">Parada</span></td><td>Para dividir un nodo, cada hijo debe recibir al menos este número de instancias de entrenamiento. Se usa comúnmente con RandomForest, que suele entrenarse más profundo que los árboles individuales.</td><td>1</td></tr>
+            <tr><td><code>minInfoGain</code></td><td><span class="tag p">Parada</span></td><td>Para dividir un nodo, el split debe mejorar al menos esta cantidad (en ganancia de información).</td><td>0.0</td></tr>
+            <tr><td><code>maxBins</code></td><td><span class="tag g">Ajustable</span></td><td>Número de bins al discretizar features continuas. Aumentarlo permite considerar más candidatos y splits más finos, pero incrementa el cómputo y la comunicación. Debe ser al menos el número máximo de categorías M de cualquier feature categórica.</td><td>32</td></tr>
+            <tr><td><code>maxMemoryInMB</code></td><td><span class="tag g">Ajustable</span></td><td>Memoria para recolectar estadísticas suficientes. Aumentarlo puede acelerar el entrenamiento (si hay memoria) al permitir <strong>menos pasadas sobre los datos</strong>, con rendimientos decrecientes porque la comunicación de cada iteración puede ser proporcional a maxMemoryInMB.<br><span style="color:var(--muted)">Detalle de implementación: el algoritmo recolecta estadísticas de <em>grupos de nodos</em> a dividir (no un nodo a la vez). Cuántos nodos caben en un grupo depende de los requisitos de memoria (que varían según las features); maxMemoryInMB es el límite que cada worker puede usar para estas estadísticas.</span></td><td>256 MiB</td></tr>
+            <tr><td><code>subsamplingRate</code></td><td><span class="tag g">Ajustable</span></td><td>Fracción de los datos de entrenamiento usada para aprender el árbol. Es más relevante para ensambles (RandomForest y GradientBoostedTrees); para un solo árbol es menos útil, pues el número de instancias no suele ser la restricción principal.</td><td>1.0</td></tr>
+            <tr><td><code>impurity</code></td><td><span class="tag g">Ajustable</span></td><td>Medida de impureza usada para elegir entre candidatos de split. Debe coincidir con <code>algo</code>.</td><td>gini / variance</td></tr>
           </tbody>
         </table></div>
       </article>
 
+      <article class="glass card">
+        <h3>Caché y checkpointing</h3>
+        <p>MLlib 1.2 agregó funciones para escalar a árboles más grandes (profundos) y a ensambles. Con <code class="mono">maxDepth</code> grande puede ser útil activar la caché de ids de nodo y el checkpointing (también con RandomForest cuando <code class="mono">numTrees</code> es grande).</p>
+        <ul class="clean">
+          <li><code class="mono">useNodeIdCache</code>: si es <code class="mono">true</code>, el algoritmo evita enviar el modelo actual (árbol o árboles) a los ejecutores en cada iteración. Útil con árboles profundos (acelera el cómputo en los workers) y con Random Forests grandes (reduce la comunicación por iteración). Por defecto, el modelo se comunica a los ejecutores para que asocien cada instancia con su nodo; con esta opción, esa información se guarda en caché.</li>
+          <li><code class="mono">checkpointDir</code>: directorio para el checkpoint de los RDD de la caché de ids de nodo.</li>
+          <li><code class="mono">checkpointInterval</code>: frecuencia del checkpoint. Muy baja ⇒ overhead extra por escrituras a HDFS; muy alta ⇒ problemas si fallan ejecutores y hay que recomputar el RDD.</li>
+        </ul>
+        <p style="font-size:.86rem;color:var(--muted)">La caché genera una secuencia de RDD (uno por iteración); ese linaje largo puede causar problemas de desempeño, que el checkpointing de RDD intermedios alivia. El checkpointing solo aplica cuando <code class="mono">useNodeIdCache</code> es <code class="mono">true</code>.</p>
+      </article>
       <article class="glass card">
         <h3>Escalamiento</h3>
         <ul class="clean">
           <li>El <strong>cómputo</strong> escala aproximadamente de forma <strong>lineal</strong> en el número de instancias de entrenamiento, en el número de features y en <code class="mono">maxBins</code>.</li>
           <li>La <strong>comunicación</strong> escala aproximadamente de forma lineal en el número de features y en <code class="mono">maxBins</code>.</li>
-          <li>El entrenamiento es <strong>por niveles</strong> (level-wise): en cada pasada sobre los datos se agregan estadísticas de un <em>grupo</em> de nodos del mismo nivel, cuyo tamaño está limitado por <code class="mono">maxMemoryInMB</code>.</li>
-          <li>Con <code class="mono">useNodeIdCache</code> se evita recalcular, por instancia, el recorrido raíz→nodo en cada pasada.</li>
+          <li>El algoritmo lee datos dispersos (<em>sparse</em>) y densos, pero <strong>no está optimizado para entradas dispersas</strong>.</li>
         </ul>
         <div class="callout neu-in">Pruébalo en la pestaña <strong>4 · Simulación de carga</strong>.</div>
       </article>
-      <article class="glass card">
-        <h3>El árbol como TAD</h3>
-        <p>En <code class="mono">spark.mllib.tree.model</code> cada <code class="mono">Node</code> guarda: <code class="mono">id</code>, <code class="mono">predict</code>, <code class="mono">impurity</code>, <code class="mono">isLeaf</code>, <code class="mono">split</code> (feature, umbral, tipo, categorías), <code class="mono">leftNode</code>, <code class="mono">rightNode</code> y <code class="mono">stats</code> (ganancia).</p>
-        <p>La numeración es la de un <strong>heap</strong>: raíz = 1, hijo izquierdo = 2·i, hijo derecho = 2·i+1; así el nivel de un nodo es ⌊log₂ id⌋.</p>
-        <pre class="code neu-in"><span class="kw">TAD</span> DecisionTreeModel
-  entrenar(datos, params) → modelo   <span class="cm">// trainClassifier / trainRegressor</span>
-  predecir(x) → etiqueta            <span class="cm">// recorrer raíz → hoja</span>
-  depth() → entero
-  numNodes() → entero
-  toDebugString() → texto
-<span class="kw">Invariante</span>: todo nodo interno tiene 2 hijos;
-  hoja ⇔ split = ∅</pre>
-      </article>
 
       <article class="glass card span2">
-        <h3>Ejemplo (PySpark, API RDD)</h3>
+        <h3>Ejemplos (PySpark)</h3>
         <div class="out-tabs">
           <button class="btn on" data-code="py">Clasificación</button>
           <button class="btn" data-code="pyr">Regresión</button>
         </div>
+        <p id="codeIntro" style="font-size:.9rem"></p>
 <pre class="code neu-in" id="codeEx"></pre>
+        <p id="codePath" style="font-size:.82rem;color:var(--muted)"></p>
       </article>
     </div>
   </section>
@@ -470,12 +485,12 @@ footer{margin-top:36px;padding:18px 22px;display:flex;flex-wrap:wrap;justify-con
 
       <!-- Pseudocódigo -->
       <article class="glass card">
-        <h3>④ Entrenamiento por niveles (pseudocódigo)</h3>
+        <h3>④ Entrenamiento por grupos de nodos (pseudocódigo)</h3>
 <pre class="code neu-in"><span class="kw">función</span> entrenar(D, params):
   bins ← cuantilesAproximados(muestra(D), maxBins)
   cola ← [raíz(id=1)]
   <span class="kw">mientras</span> cola ≠ ∅:
-    grupo ← tomarNodos(cola, maxMemoryInMB)   <span class="cm">// mismo nivel</span>
+    grupo ← tomarNodos(cola, maxMemoryInMB)   <span class="cm">// límite de memoria</span>
     <span class="cm">// 1 pasada distribuida sobre D (por particiones)</span>
     stats ← D.mapPartitions(agregarPorNodoFeatureBin)
              .reduceByKey(sumar)
@@ -649,7 +664,7 @@ footer{margin-top:36px;padding:18px 22px;display:flex;flex-wrap:wrap;justify-con
           </article>
         </div>
         <div class="glass card under" style="font-size:.86rem;color:var(--muted)">
-          <strong style="color:var(--ink)">Supuestos del modelo.</strong> Bytes de estadísticas por nodo = features × maxBins × tamaño de stats × 8 (stats = numClasses en clasificación; 3 — conteo, suma, suma² — en regresión). Nodos por pasada = ⌊maxMemoryInMB / bytes por nodo⌋. Cada pasada recorre las N·subsamplingRate instancias; sin <code class="mono">useNodeIdCache</code> cada instancia recorre el árbol desde la raíz (costo ∝ nivel). La agregación tipo <em>treeAggregate</em> envía las estadísticas de cada ejecutor por la red. Las constantes (≈4·10⁷ operaciones/s por núcleo, 80 ms de overhead por job) son ilustrativas: sirven para comparar configuraciones, no para predecir un clúster real.
+          <strong style="color:var(--ink)">Supuestos del modelo.</strong> Bytes de estadísticas por nodo = features × maxBins × tamaño de stats × 8 (stats = numClasses en clasificación; 3 — conteo, suma, suma² — en regresión). Nodos por pasada = ⌊maxMemoryInMB / bytes por nodo⌋. Cada pasada recorre las N·subsamplingRate instancias; sin <code class="mono">useNodeIdCache</code> el modelo actual se envía a los ejecutores y cada instancia se asocia a su nodo recorriendo el árbol desde la raíz (costo ∝ nivel). La agregación tipo <em>treeAggregate</em> envía las estadísticas de cada ejecutor por la red. Las constantes (≈4·10⁷ operaciones/s por núcleo, 80 ms de overhead por job) son ilustrativas: sirven para comparar configuraciones, no para predecir un clúster real.
         </div>
       </div>
     </div>
@@ -686,7 +701,7 @@ function fmtBytes(b){const u=['B','KB','MB','GB','TB','PB'];let i=0;while(b>=102
 function fmtTime(s){if(s<1)return (s*1000).toFixed(0)+' ms';if(s<60)return s.toFixed(1)+' s';if(s<3600)return (s/60).toFixed(1)+' min';if(s<86400)return (s/3600).toFixed(1)+' h';return (s/86400).toFixed(1)+' d';}
 
 /* =====================================================================
-   TAD: Árbol de decisión (réplica didáctica del algoritmo de MLlib)
+   Árbol de decisión (réplica didáctica del algoritmo de MLlib)
    ===================================================================== */
 const DT = {
   impurity(st, kind){
@@ -819,16 +834,17 @@ const CODE={
 py:`<span class="kw">from</span> pyspark.mllib.tree <span class="kw">import</span> DecisionTree, DecisionTreeModel
 <span class="kw">from</span> pyspark.mllib.util <span class="kw">import</span> MLUtils
 
-<span class="cm"># Cargar y parsear el archivo de datos (formato LIBSVM) a un RDD de LabeledPoint.</span>
+<span class="cm"># Load and parse the data file into an RDD of LabeledPoint.</span>
 data = MLUtils.loadLibSVMFile(sc, <span class="st">'data/mllib/sample_libsvm_data.txt'</span>)
-<span class="cm"># Separar en entrenamiento y prueba (30% prueba)</span>
+<span class="cm"># Split the data into training and test sets (30% held out for testing)</span>
 (trainingData, testData) = data.randomSplit([<span class="nu">0.7</span>, <span class="nu">0.3</span>])
 
-<span class="cm"># Entrenar un DecisionTree. categoricalFeaturesInfo vacío ⇒ todas continuas.</span>
+<span class="cm"># Train a DecisionTree model.</span>
+<span class="cm">#  Empty categoricalFeaturesInfo indicates all features are continuous.</span>
 model = DecisionTree.trainClassifier(trainingData, numClasses=<span class="nu">2</span>, categoricalFeaturesInfo={},
                                      impurity=<span class="st">'gini'</span>, maxDepth=<span class="nu">5</span>, maxBins=<span class="nu">32</span>)
 
-<span class="cm"># Evaluar en el conjunto de prueba y calcular el error</span>
+<span class="cm"># Evaluate model on test instances and compute test error</span>
 predictions = model.predict(testData.map(<span class="kw">lambda</span> x: x.features))
 labelsAndPredictions = testData.map(<span class="kw">lambda</span> lp: lp.label).zip(predictions)
 testErr = labelsAndPredictions.filter(
@@ -837,27 +853,38 @@ print(<span class="st">'Test Error = '</span> + str(testErr))
 print(<span class="st">'Learned classification tree model:'</span>)
 print(model.toDebugString())
 
-<span class="cm"># Guardar y cargar el modelo</span>
+<span class="cm"># Save and load model</span>
 model.save(sc, <span class="st">"target/tmp/myDecisionTreeClassificationModel"</span>)
 sameModel = DecisionTreeModel.load(sc, <span class="st">"target/tmp/myDecisionTreeClassificationModel"</span>)`,
 pyr:`<span class="kw">from</span> pyspark.mllib.tree <span class="kw">import</span> DecisionTree, DecisionTreeModel
 <span class="kw">from</span> pyspark.mllib.util <span class="kw">import</span> MLUtils
 
+<span class="cm"># Load and parse the data file into an RDD of LabeledPoint.</span>
 data = MLUtils.loadLibSVMFile(sc, <span class="st">'data/mllib/sample_libsvm_data.txt'</span>)
+<span class="cm"># Split the data into training and test sets (30% held out for testing)</span>
 (trainingData, testData) = data.randomSplit([<span class="nu">0.7</span>, <span class="nu">0.3</span>])
 
-<span class="cm"># Árbol de regresión: la impureza debe ser 'variance'</span>
+<span class="cm"># Train a DecisionTree model.</span>
+<span class="cm">#  Empty categoricalFeaturesInfo indicates all features are continuous.</span>
 model = DecisionTree.trainRegressor(trainingData, categoricalFeaturesInfo={},
                                     impurity=<span class="st">'variance'</span>, maxDepth=<span class="nu">5</span>, maxBins=<span class="nu">32</span>)
 
+<span class="cm"># Evaluate model on test instances and compute test error</span>
 predictions = model.predict(testData.map(<span class="kw">lambda</span> x: x.features))
 labelsAndPredictions = testData.map(<span class="kw">lambda</span> lp: lp.label).zip(predictions)
 testMSE = labelsAndPredictions.map(<span class="kw">lambda</span> lp: (lp[<span class="nu">0</span>] - lp[<span class="nu">1</span>]) * (lp[<span class="nu">0</span>] - lp[<span class="nu">1</span>])).sum() /\\
     float(testData.count())
 print(<span class="st">'Test Mean Squared Error = '</span> + str(testMSE))
 print(<span class="st">'Learned regression tree model:'</span>)
-print(model.toDebugString())`};
-function showCode(k){$('#codeEx').innerHTML=CODE[k];$$('[data-code]').forEach(b=>b.classList.toggle('on',b.dataset.code===k));}
+print(model.toDebugString())
+
+<span class="cm"># Save and load model</span>
+model.save(sc, <span class="st">"target/tmp/myDecisionTreeRegressionModel"</span>)
+sameModel = DecisionTreeModel.load(sc, <span class="st">"target/tmp/myDecisionTreeRegressionModel"</span>)`};
+const CODE_INFO={
+py:['Carga un archivo LIBSVM, lo parsea como un RDD de <code class="mono">LabeledPoint</code> y clasifica con un árbol de decisión con impureza de Gini y profundidad máxima 5. Se calcula el error de prueba para medir la precisión del algoritmo.','Ejemplo completo: <span class="mono">examples/src/main/python/mllib/decision_tree_classification_example.py</span> en el repositorio de Spark.'],
+pyr:['Carga un archivo LIBSVM, lo parsea como un RDD de <code class="mono">LabeledPoint</code> y hace regresión con un árbol de decisión con varianza como impureza y profundidad máxima 5. Al final se calcula el error cuadrático medio (MSE) para evaluar la bondad del ajuste.','Ejemplo completo: <span class="mono">examples/src/main/python/mllib/decision_tree_regression_example.py</span> en el repositorio de Spark.']};
+function showCode(k){$('#codeEx').innerHTML=CODE[k];$('#codeIntro').innerHTML=CODE_INFO[k][0];$('#codePath').innerHTML=CODE_INFO[k][1];$$('[data-code]').forEach(b=>b.classList.toggle('on',b.dataset.code===k));}
 $$('[data-code]').forEach(b=>b.addEventListener('click',()=>showCode(b.dataset.code)));
 showCode('py');
 
@@ -934,9 +961,9 @@ igSetup();
 function drawCat(){
   const M=+$('#mCat').value,B=+$('#catBins').value,alg=$('#catAlgo').value;$('#mV').textContent=M;$('#cbV').textContent=B;
   const all=Math.pow(2,M-1)-1;let used,msg;
-  if(alg==='bin'){used=M-1;msg=`Binaria/regresión: MLlib ordena las ${M} categorías por la etiqueta promedio y trata la feature como ordenada ⇒ <strong>M−1 = ${used}</strong> candidatos (es óptimo, no una aproximación).`;}
-  else if(all<=B){used=all;msg=`Multiclase: como 2<sup>M−1</sup>−1 = ${all} ≤ maxBins (${B}), se evalúan <strong>todas</strong> las particiones (feature categórica no ordenada).`;}
-  else{used=M-1;msg=`Multiclase: 2<sup>M−1</sup>−1 = ${all} excede maxBins (${B}); MLlib ordena las categorías por impureza y evalúa <strong>M−1 = ${used}</strong> splits.`;}
+  if(alg==='bin'){used=M-1;msg=`Binaria/regresión: MLlib ordena las ${M} categorías por la etiqueta promedio y trata la feature como ordenada ⇒ <strong>M−1 = ${used}</strong> candidatos. Ej.: A, B, C con proporción de etiqueta 1 = 0.2, 0.6, 0.4 ⇒ orden A, C, B ⇒ splits <span class="mono">A | C, B</span> y <span class="mono">A, C | B</span>.`;}
+  else if(all<=B){used=all;msg=`Multiclase: como 2<sup>M−1</sup>−1 = ${all} ≤ maxBins (${B}), se usan <strong>todas</strong> las particiones posibles.`;}
+  else{used=M-1;msg=`Multiclase: 2<sup>M−1</sup>−1 = ${all} es mayor que maxBins (${B}): método heurístico, las categorías se ordenan por impureza y se consideran <strong>M−1 = ${used}</strong> candidatos.`;}
   if(B<M)msg+=` <br><span style="color:#B91C1C">⚠ maxBins debe ser ≥ ${M} (máx. categorías).</span>`;
   $('#catAll').textContent=all.toLocaleString('es');$('#catUsed').textContent=used.toLocaleString('es');$('#catMsg').innerHTML=msg;
 }
@@ -946,10 +973,11 @@ function drawCat(){
 const QUIZ=[
   {q:'¿Qué impureza debe usarse con un árbol de regresión en MLlib?',o:['gini','entropy','variance'],a:2,e:'La varianza mide la dispersión de una etiqueta continua.'},
   {q:'Un nodo con 10 instancias de una sola clase tiene Gini igual a…',o:['0','0.5','1'],a:0,e:'Un nodo puro no tiene impureza: Σ f(1−f) = 1·0 = 0.'},
+  {q:'¿Cómo calcula MLlib los candidatos de split de una feature continua en datos grandes?',o:['Ordena todos los valores únicos','Cuantiles aproximados sobre una muestra','Elige umbrales al azar'],a:1,e:'Ordenar es costoso en datos distribuidos; se calculan cuantiles sobre una fracción muestreada y se forman bins (maxBins).'},
   {q:'¿Qué parámetro reduce el número de pasadas sobre los datos si se incrementa?',o:['maxBins','maxMemoryInMB','minInfoGain'],a:1,e:'Más memoria permite agregar estadísticas de más nodos en cada pasada.'},
   {q:'Feature categórica con M = 6 en clasificación binaria. ¿Cuántos candidatos evalúa MLlib?',o:['5','31','63'],a:0,e:'Ordena por etiqueta promedio: M−1 = 5.'},
-  {q:'En la numeración de nodos de MLlib, ¿cuál es el id del hijo derecho del nodo 5?',o:['10','11','6'],a:1,e:'Hijo derecho = 2·i + 1 = 11 (representación tipo heap).'},
-  {q:'La comunicación del entrenamiento escala aproximadamente lineal en…',o:['features y maxBins','instancias y maxDepth','solo instancias'],a:0,e:'Las estadísticas por nodo tienen tamaño features × bins × stats.'}
+  {q:'¿Cuándo aplica el checkpointing de los RDD de ids de nodo?',o:['Siempre','Solo si useNodeIdCache = true','Solo en regresión'],a:1,e:'Según la guía, el checkpointing solo aplica cuando useNodeIdCache está en true.'},
+  {q:'La comunicación del entrenamiento escala aproximadamente lineal en…',o:['features y maxBins','instancias y maxDepth','solo instancias'],a:0,e:'La guía: la comunicación escala aproximadamente lineal en el número de features y en maxBins.'}
 ];
 const quizState=QUIZ.map(()=>null);
 $('#quiz').innerHTML=QUIZ.map((x,i)=>`<div class="quiz-q neu-in"><strong>${i+1}. ${x.q}</strong><div class="opts">${x.o.map((o,j)=>`<button class="btn" data-q="${i}" data-o="${j}">${o}</button>`).join('')}</div><div class="fb" id="fb${i}"></div></div>`).join('');
