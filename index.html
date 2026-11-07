@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<!--
+/*******************************************
+-Nombres: Salomon Avila, Gabriel Jaramillo
+-Materia: Estructuras de datos
+-Pontificia Universidad Javeriana
+-Taller 02
+-Temas: TADs, implementacion
+*******************************************/
+  Simulador de Árboles de Decisión — Spark MLlib (RDD API)
+  Referencia: https://spark.apache.org/docs/latest/mllib-decision-tree.html
+  HTML estático: Three.js (CDN) + CSS Glassmorphism / Neumorfismo.
+-->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador Árboles MLlib</title>
+<meta name="author" content="Salomon Avila, Gabriel Jaramillo">
+<meta name="description" content="Simulador didáctico de árboles de decisión de Spark MLlib en Three.js con estilos glassmorphism y neumorfismo.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* =====================================================================
+   TOKENS — Glassmorphism (vidrio esmerilado) + Neumorfismo (relieve)
+   ===================================================================== */
+:root{
+  --bg:#e3e8f3;
+  --surface:#e6ebf5;
+  --ink:#1d2340;
+  --muted:#59618a;
+  --accent:#6c63ff;
+  --accent-2:#ff6b9d;
+  --accent-3:#1fbf9f;
+  --accent-4:#f5a524;
+  --glass:rgba(255,255,255,.30);
+  --glass-strong:rgba(255,255,255,.52);
+  --glass-border:rgba(255,255,255,.65);
+  --glass-shadow:0 10px 40px rgba(40,48,120,.14);
+  --neu-light:rgba(255,255,255,.95);
+  --neu-dark:rgba(146,158,190,.55);
+  --radius:24px;
+  --radius-sm:14px;
+  --mono:'JetBrains Mono',ui-monospace,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;min-height:100vh;overflow-x:hidden;
+  font-family:'Inter',system-ui,-apple-system,Segoe UI,sans-serif;
+  color:var(--ink);background:var(--bg);line-height:1.55;
+}
+/* Fondo con manchas de color difuminadas (lo que el vidrio deja ver) */
+.bg{position:fixed;inset:0;z-index:-1;overflow:hidden;background:linear-gradient(135deg,#e9ecfb 0%,#e2f0f4 50%,#f3e8f3 100%)}
+.blob{position:absolute;border-radius:50%;filter:blur(70px);opacity:.70;animation:float 26s ease-in-out infinite}
+.b1{width:520px;height:520px;background:#8c84ff;top:-120px;left:-90px}
+.b2{width:460px;height:460px;background:#ff9cc0;top:30%;right:-120px;animation-delay:-7s}
+.b3{width:420px;height:420px;background:#62e0c6;bottom:-140px;left:22%;animation-delay:-13s}
+.b4{width:300px;height:300px;background:#ffd27a;top:45%;left:-80px;animation-delay:-19s;opacity:.55}
+@keyframes float{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(60px,40px) scale(1.08)}66%{transform:translate(-40px,60px) scale(.94)}}
+
+.wrap{max-width:1360px;margin:0 auto;padding:24px 16px 64px}
+
+/* ---------- Glass ---------- */
+.glass{
+  background:var(--glass);
+  border:1px solid var(--glass-border);
+  -webkit-backdrop-filter:blur(20px) saturate(170%);
+  backdrop-filter:blur(20px) saturate(170%);
+  border-radius:var(--radius);
+  box-shadow:var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,.7);
+}
+.glass-strong{background:var(--glass-strong)}
+.card{padding:22px 24px}
+.card h3{margin:0 0 10px;font-size:1.08rem;letter-spacing:-.01em}
+.card p{margin:.4rem 0;color:#2b3258}
+
+/* ---------- Neumorfismo ---------- */
+.neu{
+  background:var(--surface);border-radius:var(--radius-sm);
+  box-shadow:7px 7px 16px var(--neu-dark),-7px -7px 16px var(--neu-light);
+}
+.neu-in{
+  background:var(--surface);border-radius:var(--radius-sm);
+  box-shadow:inset 5px 5px 11px var(--neu-dark),inset -5px -5px 11px var(--neu-light);
+}
+.btn{
+  font:600 .9rem/1 'Inter',sans-serif;color:var(--ink);cursor:pointer;
+  border:none;background:var(--surface);border-radius:14px;padding:.78rem 1.15rem;
+  box-shadow:6px 6px 14px var(--neu-dark),-6px -6px 14px var(--neu-light);
+  transition:box-shadow .18s, transform .18s, color .18s;display:inline-flex;align-items:center;gap:.45rem;
+}
+.btn:hover{color:var(--accent)}
+.btn:active,.btn.on{box-shadow:inset 4px 4px 10px var(--neu-dark),inset -4px -4px 10px var(--neu-light);color:var(--accent)}
+.btn.primary{background:linear-gradient(145deg,#7b73ff,#5d54ef);color:#fff;box-shadow:6px 6px 14px rgba(93,84,239,.45),-5px -5px 12px var(--neu-light)}
+.btn.primary:hover{color:#fff;transform:translateY(-1px)}
+.btn.primary:active{box-shadow:inset 4px 4px 10px rgba(40,30,160,.45)}
+.btn:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.btn-row{display:flex;flex-wrap:wrap;gap:12px}
+
+/* ---------- Header ---------- */
+header.hero{display:grid;grid-template-columns:1.25fr 1fr;gap:22px;align-items:stretch}
+.hero-main{padding:30px 32px;display:flex;flex-direction:column;justify-content:center}
+.eyebrow{font:600 .75rem var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+h1{font-size:clamp(1.8rem,3.6vw,2.9rem);line-height:1.08;margin:.4rem 0 .6rem;letter-spacing:-.03em}
+h1 span{background:linear-gradient(90deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{color:var(--muted);font-size:1.02rem;max-width:58ch;margin:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{font:500 .78rem 'Inter';padding:.42rem .8rem;border-radius:999px;background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.8);color:#3b4370}
+.membrete{padding:22px 24px;font-family:var(--mono);font-size:.84rem;white-space:pre;overflow:auto;color:#2a3160;display:flex;flex-direction:column;justify-content:center}
+.membrete .c{color:#8a91b8}
+.membrete b{color:var(--accent);font-weight:600}
+
+/* ---------- Tabs ---------- */
+nav.tabs{position:sticky;top:10px;z-index:30;margin:22px 0;padding:10px;display:flex;gap:10px;flex-wrap:wrap}
+nav.tabs .btn{flex:1 1 180px;justify-content:center;padding:.9rem 1rem}
+nav.tabs .btn .n{font:600 .72rem var(--mono);width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;background:rgba(108,99,255,.13);color:var(--accent)}
+.panel{display:none;animation:fade .45s ease}
+.panel.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.section-title{display:flex;align-items:baseline;gap:12px;margin:6px 4px 16px}
+.section-title h2{margin:0;font-size:1.55rem;letter-spacing:-.02em}
+.section-title p{margin:0;color:var(--muted)}
+
+.grid{display:grid;gap:20px}
+.grid>*,header.hero>*,.sim-layout>*,.load-layout>*{min-width:0}
+.tbl-wrap{overflow-x:auto}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.span2{grid-column:span 2}
+
+/* ---------- Fórmulas / código ---------- */
+.formula{font-family:'Cambria Math','STIX Two Math',Georgia,serif;font-size:1.08rem;padding:14px 16px;margin:10px 0;text-align:center;overflow-x:auto}
+.formula sub,.formula sup{font-size:.72em}
+.mono{font-family:var(--mono)}
+pre.code{font:400 .8rem/1.55 var(--mono);padding:16px 18px;margin:10px 0 0;overflow:auto;max-height:420px;color:#283060;white-space:pre}
+.kw{color:#6c63ff;font-weight:600}.st{color:#d0487a}.cm{color:#8a91b8;font-style:italic}.nu{color:#12957c}
+table.tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:.88rem}
+.tbl th,.tbl td{padding:9px 10px;text-align:left;vertical-align:top;border-bottom:1px solid rgba(255,255,255,.7)}
+.tbl th{font-size:.74rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.tbl td code{font:600 .8rem var(--mono);color:var(--accent)}
+.tag{display:inline-block;font:600 .68rem var(--mono);padding:2px 7px;border-radius:6px;background:rgba(108,99,255,.12);color:var(--accent);margin-right:4px}
+.tag.p{background:rgba(255,107,157,.14);color:#d0487a}.tag.g{background:rgba(31,191,159,.15);color:#12957c}
+ul.clean{padding-left:1.1rem;margin:.4rem 0}ul.clean li{margin:.3rem 0}
+.callout{padding:12px 14px;border-left:4px solid var(--accent);margin-top:10px;font-size:.92rem}
+
+/* ---------- Controles neumórficos ---------- */
+.ctrl{margin:0 0 15px}
+.ctrl label{display:flex;justify-content:space-between;gap:8px;font-size:.82rem;font-weight:600;color:#39406b;margin-bottom:8px}
+.ctrl label .v{font:600 .8rem var(--mono);color:var(--accent);padding:2px 8px;border-radius:8px;background:rgba(108,99,255,.1)}
+.ctrl small{display:block;color:var(--muted);font-size:.74rem;margin-top:5px}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:12px;border-radius:10px;background:var(--surface);
+  box-shadow:inset 3px 3px 7px var(--neu-dark),inset -3px -3px 7px var(--neu-light);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;cursor:pointer;
+  background:linear-gradient(145deg,#ffffff,#d9def0);border:3px solid var(--accent);box-shadow:3px 3px 7px var(--neu-dark),-3px -3px 7px var(--neu-light)}
+input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;cursor:pointer;background:#fff;border:3px solid var(--accent);box-shadow:3px 3px 7px var(--neu-dark)}
+select,input[type=number]{width:100%;font:500 .88rem 'Inter';color:var(--ink);border:none;padding:.7rem .9rem;border-radius:12px;background:var(--surface);
+  box-shadow:inset 4px 4px 9px var(--neu-dark),inset -4px -4px 9px var(--neu-light);appearance:none;-webkit-appearance:none}
+select{background-image:linear-gradient(45deg,transparent 50%,var(--accent) 50%),linear-gradient(135deg,var(--accent) 50%,transparent 50%);
+  background-position:calc(100% - 18px) 52%,calc(100% - 13px) 52%;background-size:5px 5px;background-repeat:no-repeat;padding-right:2rem}
+.seg{display:flex;gap:6px;padding:6px}
+.seg button{flex:1;border:none;background:transparent;padding:.6rem .4rem;border-radius:10px;font:600 .82rem 'Inter';color:var(--muted);cursor:pointer}
+.seg button.on{background:var(--surface);color:var(--accent);box-shadow:4px 4px 9px var(--neu-dark),-4px -4px 9px var(--neu-light)}
+.switch{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:.84rem;font-weight:600;color:#39406b;margin-bottom:15px}
+.switch input{display:none}
+.switch .track{width:54px;height:28px;border-radius:20px;position:relative;flex:none;background:var(--surface);
+  box-shadow:inset 3px 3px 7px var(--neu-dark),inset -3px -3px 7px var(--neu-light);cursor:pointer;transition:background .2s}
+.switch .track::after{content:"";position:absolute;top:4px;left:4px;width:20px;height:20px;border-radius:50%;background:#fff;
+  box-shadow:2px 2px 5px var(--neu-dark);transition:transform .25s, background .25s}
+.switch input:checked + .track{background:rgba(108,99,255,.25)}
+.switch input:checked + .track::after{transform:translateX(26px);background:var(--accent)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.group-title{font:700 .72rem var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:18px 0 12px;display:flex;align-items:center;gap:8px}
+.group-title::after{content:"";flex:1;height:1px;background:rgba(120,130,180,.25)}
+
+/* ---------- KPIs ---------- */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:14px}
+.kpi{padding:14px 16px}
+.kpi .k{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.kpi .val{font:700 1.4rem 'Inter';letter-spacing:-.02em;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi .val small{font-size:.75rem;color:var(--muted);font-weight:600}
+
+/* ---------- Simulador 3D ---------- */
+.sim-layout{display:grid;grid-template-columns:320px minmax(0,1fr);gap:20px;align-items:start}
+.sidebar{padding:20px;position:sticky;top:96px;max-height:calc(100vh - 110px);overflow:auto}
+.viz{position:relative;height:620px;overflow:hidden;padding:0}
+.viz canvas{display:block}
+.label-layer{position:absolute;inset:0;}
+.label-layer > div{pointer-events:none}
+.node-label{font:600 10.5px var(--mono);padding:3px 7px;border-radius:8px;color:#232a55;white-space:nowrap;
+  background:rgba(255,255,255,.62);border:1px solid rgba(255,255,255,.9);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  box-shadow:0 3px 10px rgba(40,48,120,.15);transform:translateY(-26px)}
+.node-label.leaf{color:#fff;border-color:rgba(255,255,255,.5)}
+.overlay{position:absolute;z-index:5;padding:10px 14px;font-size:.78rem}
+.ov-tl{top:14px;left:14px}.ov-tr{top:14px;right:14px;max-width:260px}.ov-bl{bottom:14px;left:14px}
+.legend-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+#nodeTip{position:absolute;z-index:6;pointer-events:none;display:none;padding:12px 14px;font-size:.78rem;min-width:200px;max-width:260px}
+#nodeTip h4{margin:0 0 6px;font-size:.86rem}
+#nodeTip .r{display:flex;justify-content:space-between;gap:12px;font-family:var(--mono);font-size:.74rem}
+.fallback{position:absolute;inset:0;display:none;place-items:center;text-align:center;padding:30px;color:var(--muted)}
+.under{margin-top:20px}
+.out-tabs{display:flex;gap:8px;margin-bottom:6px}
+.probe-box{font-size:.84rem;margin-top:6px}
+.path{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.path span{font:600 .72rem var(--mono);padding:4px 8px;border-radius:8px;background:rgba(108,99,255,.12);color:var(--accent)}
+
+/* ---------- Didáctica ---------- */
+canvas.plot{width:100%;height:220px;display:block;border-radius:16px}
+.meter{height:14px;border-radius:10px;overflow:hidden;display:flex;margin:8px 0}
+.meter > div{height:100%;transition:width .3s}
+.big-num{font:800 1.9rem 'Inter';letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.ig-table{width:100%;font-size:.84rem;border-collapse:collapse;margin-top:10px}
+.ig-table td,.ig-table th{padding:7px 8px;border-bottom:1px solid rgba(255,255,255,.7);text-align:right;font-variant-numeric:tabular-nums}
+.ig-table th:first-child,.ig-table td:first-child{text-align:left}
+.ig-table tr.best td{color:var(--accent);font-weight:700}
+.quiz-q{padding:16px 18px;margin-bottom:14px}
+.quiz-q .opts{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.quiz-q .btn{font-weight:500;font-size:.84rem}
+.quiz-q .btn.ok{color:#0f8f73;box-shadow:inset 4px 4px 10px rgba(31,191,159,.35),inset -4px -4px 10px var(--neu-light)}
+.quiz-q .btn.bad{color:#c43a6b;box-shadow:inset 4px 4px 10px rgba(255,107,157,.35),inset -4px -4px 10px var(--neu-light)}
+.fb{font-size:.82rem;margin-top:8px;color:var(--muted);min-height:1.2em}
+.steps{counter-reset:s;list-style:none;padding:0;margin:0}
+.steps li{counter-increment:s;position:relative;padding:10px 12px 10px 50px;margin-bottom:10px}
+.steps li::before{content:counter(s);position:absolute;left:12px;top:10px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
+  font:700 .78rem var(--mono);color:var(--accent);background:var(--surface);box-shadow:3px 3px 7px var(--neu-dark),-3px -3px 7px var(--neu-light)}
+
+/* ---------- Carga ---------- */
+.load-layout{display:grid;grid-template-columns:320px minmax(0,1fr);gap:20px;align-items:start}
+.cluster{position:relative;height:360px;padding:0;overflow:hidden}
+.progress{height:12px;border-radius:10px;overflow:hidden;margin:10px 0}
+.progress > div{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:10px;transition:width .2s}
+.log{font:400 .74rem/1.6 var(--mono);height:180px;overflow:auto;padding:12px 14px;color:#2d3566}
+.log .lv{color:var(--accent);font-weight:600}.log .wr{color:#c43a6b}
+.warn{font-size:.8rem;color:#b2365f;margin-top:8px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:.78rem;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:4px;margin-right:6px;vertical-align:-2px}
+
+footer{margin-top:36px;padding:18px 22px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;font-size:.82rem;color:var(--muted)}
+footer a{color:var(--accent)}
+
+@media (max-width:1000px){
+  header.hero,.sim-layout,.load-layout,.g2,.g3{grid-template-columns:1fr}
+  .span2{grid-column:auto}
+  .sidebar{position:static;max-height:none}
+  .viz{height:480px}
+}
+@media (max-width:560px){
+  .hero-main{padding:22px}
+  .membrete{font-size:.7rem}
+  .card{padding:18px}
+  nav.tabs{top:6px}
+  nav.tabs .btn{flex:1 1 40%;font-size:.8rem;padding:.75rem .5rem}
+  .ov-tr{display:none}
+  .node-label{font-size:9px;padding:2px 5px}
+  .node-label.leaf{display:none}
+  .viz{height:420px}
+}
+@media (prefers-reduced-motion:reduce){.blob{animation:none}.panel{animation:none}}
+</style>
+</head>
+<body>
+<div class="bg" aria-hidden="true"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div></div>
+
+<div class="wrap">
+  <!-- ===================== ENCABEZADO + MEMBRETE ===================== -->
+  <header class="hero">
+    <div class="glass hero-main">
+      <div class="eyebrow">Spark MLlib · spark.mllib.tree</div>
+      <h1>Simulador de <span>Árboles de Decisión</span></h1>
+      <p class="lead">Explora cómo MLlib construye un árbol de decisión distribuido: impureza, ganancia de información, candidatos de split por <em>bins</em>, reglas de parada y comportamiento del entrenamiento por niveles frente a la carga.</p>
+      <div class="chips">
+        <span class="chip">Clasificación binaria y multiclase</span>
+        <span class="chip">Regresión</span>
+        <span class="chip">Gini · Entropía · Varianza</span>
+        <span class="chip">Three.js 3D</span>
+      </div>
+    </div>
+    <div class="glass membrete" aria-label="Membrete del taller"><span class="c">/*******************************************</span>
+<span>-Nombres: <b>Salomon Avila, Gabriel Jaramillo</b></span>
+<span>-Materia: <b>Estructuras de datos</b></span>
+<span>-<b>Pontificia Universidad Javeriana</b></span>
+<span>-Taller <b>02</b></span>
+<span>-Temas: <b>TADs, implementacion</b></span>
+<span class="c">*******************************************/</span></div>
+  </header>
+
+  <!-- ===================== NAVEGACIÓN ===================== -->
+  <nav class="tabs glass" role="tablist">
+    <button class="btn on" data-tab="conceptual" role="tab"><span class="n">1</span> Conceptual</button>
+    <button class="btn" data-tab="didactica" role="tab"><span class="n">2</span> Didáctica</button>
+    <button class="btn" data-tab="simulador" role="tab"><span class="n">3</span> Simulador 3D</button>
+    <button class="btn" data-tab="carga" role="tab"><span class="n">4</span> Simulación de carga</button>
+  </nav>
+
+  <!-- ===================== 1. CONCEPTUAL ===================== -->
+  <section class="panel active" id="conceptual">
+    <div class="section-title"><h2>Marco conceptual</h2><p>Lo que dice la guía de MLlib, organizado.</p></div>
+    <div class="grid g2">
+      <article class="glass card">
+        <h3>¿Qué es un árbol de decisión en MLlib?</h3>
+        <p>Los árboles de decisión y sus ensambles son métodos populares para clasificación y regresión. Son fáciles de interpretar, manejan <em>features</em> categóricas, se extienden a multiclase, <strong>no requieren escalar las features</strong> y capturan no linealidades e interacciones entre variables.</p>
+        <p><code class="mono">spark.mllib</code> soporta árboles para <strong>clasificación binaria y multiclase</strong> y para <strong>regresión</strong>, con features continuas y categóricas. La implementación particiona los datos <strong>por filas</strong>, lo que permite entrenar de forma distribuida con millones o miles de millones de instancias.</p>
+      </article>
+      <article class="glass card">
+        <h3>Algoritmo básico</h3>
+        <p>Es un algoritmo <strong>voraz (greedy)</strong> que realiza un <strong>particionamiento binario recursivo</strong> del espacio de features. Cada hoja predice la misma etiqueta. En cada nodo se elige el split <em>s</em> que maximiza la ganancia de información sobre el conjunto de datos <em>D</em> del nodo:</p>
+        <div class="formula neu-in">argmax<sub>s</sub> IG(D, s)</div>
+        <div class="formula neu-in">IG(D,s) = Impureza(D) − <sup>N<sub>izq</sub></sup>⁄<sub>N</sub>·Impureza(D<sub>izq</sub>) − <sup>N<sub>der</sub></sup>⁄<sub>N</sub>·Impureza(D<sub>der</sub>)</div>
+        <p style="font-size:.86rem;color:var(--muted)">N es el tamaño del conjunto del nodo y D<sub>izq</sub>, D<sub>der</sub> son las particiones que produce el split.</p>
+      </article>
+
+      <article class="glass card span2">
+        <h3>Medidas de impureza del nodo</h3>
+        <p>La impureza mide la homogeneidad de las etiquetas en el nodo. MLlib ofrece dos para clasificación y una para regresión (f<sub>i</sub> es la frecuencia de la etiqueta <em>i</em>, C el número de clases, y<sub>i</sub> la etiqueta de la instancia, μ = (1/N)Σy<sub>i</sub>).</p>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Impureza</th><th>Tarea</th><th>Fórmula</th><th>Idea</th></tr></thead>
+          <tbody>
+            <tr><td><code>gini</code></td><td><span class="tag">Clasificación</span></td><td class="formula" style="text-align:left;padding:4px 0">Σ<sub>i=1..C</sub> f<sub>i</sub>(1 − f<sub>i</sub>)</td><td>Probabilidad de clasificar mal una instancia elegida al azar.</td></tr>
+            <tr><td><code>entropy</code></td><td><span class="tag">Clasificación</span></td><td class="formula" style="text-align:left;padding:4px 0">Σ<sub>i=1..C</sub> −f<sub>i</sub> log(f<sub>i</sub>)</td><td>Desorden / información esperada (aquí se usa log₂).</td></tr>
+            <tr><td><code>variance</code></td><td><span class="tag p">Regresión</span></td><td class="formula" style="text-align:left;padding:4px 0">(1/N) Σ<sub>i=1..N</sub> (y<sub>i</sub> − μ)<sup>2</sup></td><td>Dispersión de la etiqueta continua.</td></tr>
+          </tbody>
+        </table></div>
+      </article>
+
+      <article class="glass card">
+        <h3>Candidatos de split</h3>
+        <p><strong>Features continuas.</strong> En datasets pequeños en una sola máquina se suelen usar como candidatos los valores únicos ordenados. En datos distribuidos y grandes, ordenar es costoso, por eso MLlib calcula un conjunto <strong>aproximado de cuantiles</strong> sobre una <strong>muestra</strong> de los datos. Los splits ordenados crean <em>bins</em>; su número máximo se controla con <code class="mono">maxBins</code> (el número de bins nunca supera el número de instancias, caso raro porque el valor por defecto es 32).</p>
+        <p><strong>Features categóricas.</strong> Con M valores posibles hay 2<sup>M−1</sup>−1 particiones. Para <strong>clasificación binaria y regresión</strong> se reduce a <strong>M−1</strong> candidatos ordenando las categorías por la etiqueta promedio. En <strong>multiclase</strong> se usan las 2<sup>M−1</sup>−1 particiones cuando es posible; si no, se ordenan las categorías por impureza y se consideran M−1 splits.</p>
+      </article>
+      <article class="glass card">
+        <h3>Reglas de parada</h3>
+        <p>La construcción recursiva se detiene en un nodo cuando se cumple alguna de estas condiciones:</p>
+        <ol class="steps">
+          <li class="neu-in">La profundidad del nodo es igual a <code class="mono">maxDepth</code>.</li>
+          <li class="neu-in">Ningún candidato de split produce una ganancia de información mayor que <code class="mono">minInfoGain</code>.</li>
+          <li class="neu-in">Ningún candidato de split produce nodos hijos que tengan cada uno al menos <code class="mono">minInstancesPerNode</code> instancias.</li>
+        </ol>
+      </article>
+
+      <article class="glass card span2">
+        <h3>Parámetros (consejos de uso)</h3>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Parámetro</th><th>Grupo</th><th>Descripción</th><th>Por defecto</th></tr></thead>
+          <tbody>
+            <tr><td><code>algo</code></td><td><span class="tag">Problema</span></td><td>Tipo de árbol: <em>Classification</em> o <em>Regression</em>.</td><td>—</td></tr>
+            <tr><td><code>numClasses</code></td><td><span class="tag">Problema</span></td><td>Número de clases (solo clasificación).</td><td>—</td></tr>
+            <tr><td><code>categoricalFeaturesInfo</code></td><td><span class="tag">Problema</span></td><td>Mapa índice de feature → aridad. Ej. <code>{0: 2, 4: 10}</code>: la feature 0 es binaria (0,1) y la 4 tiene 10 categorías (0..9). Las no listadas se tratan como continuas.</td><td>{}</td></tr>
+            <tr><td><code>maxDepth</code></td><td><span class="tag p">Parada</span></td><td>Profundidad máxima. Más profundo ⇒ más expresivo, más costoso y más riesgo de sobreajuste.</td><td>5 (máx. 30)</td></tr>
+            <tr><td><code>minInstancesPerNode</code></td><td><span class="tag p">Parada</span></td><td>Cada hijo de un split debe recibir al menos este número de instancias.</td><td>1</td></tr>
+            <tr><td><code>minInfoGain</code></td><td><span class="tag p">Parada</span></td><td>Un nodo solo se divide si la ganancia supera este valor.</td><td>0.0</td></tr>
+            <tr><td><code>maxBins</code></td><td><span class="tag g">Ajuste</span></td><td>Bins al discretizar features continuas. Debe ser ≥ al número máximo de categorías de cualquier feature categórica. Más bins ⇒ splits más finos, más cómputo y comunicación.</td><td>32</td></tr>
+            <tr><td><code>maxMemoryInMB</code></td><td><span class="tag g">Ajuste</span></td><td>Memoria para agregar estadísticas. Más memoria ⇒ más nodos por pasada sobre los datos ⇒ menos pasadas (y más comunicación por pasada).</td><td>256</td></tr>
+            <tr><td><code>subsamplingRate</code></td><td><span class="tag g">Ajuste</span></td><td>Fracción de datos usada para aprender el árbol (útil sobre todo en ensambles).</td><td>1.0</td></tr>
+            <tr><td><code>impurity</code></td><td><span class="tag g">Ajuste</span></td><td>Medida de impureza; debe ser coherente con <code>algo</code>.</td><td>gini / variance</td></tr>
+            <tr><td><code>useNodeIdCache</code></td><td><span class="tag">Caché</span></td><td>Guarda en un RDD el id de nodo de cada instancia y evita enviar el modelo actual a los ejecutores en cada iteración. Útil con árboles profundos.</td><td>false</td></tr>
+            <tr><td><code>checkpointDir</code> / <code>checkpointInterval</code></td><td><span class="tag">Caché</span></td><td>Checkpoint del RDD de ids de nodo para cortar linajes largos. Intervalos muy bajos aumentan escrituras a HDFS; muy altos pueden fallar si ejecutores caen.</td><td>— / 10</td></tr>
+          </tbody>
+        </table></div>
+      </article>
+
+      <article class="glass card">
+        <h3>Escalamiento</h3>
+        <ul class="clean">
+          <li>El <strong>cómputo</strong> escala aproximadamente de forma <strong>lineal</strong> en el número de instancias de entrenamiento, en el número de features y en <code class="mono">maxBins</code>.</li>
+          <li>La <strong>comunicación</strong> escala aproximadamente de forma lineal en el número de features y en <code class="mono">maxBins</code>.</li>
+          <li>El entrenamiento es <strong>por niveles</strong> (level-wise): en cada pasada sobre los datos se agregan estadísticas de un <em>grupo</em> de nodos del mismo nivel, cuyo tamaño está limitado por <code class="mono">maxMemoryInMB</code>.</li>
+          <li>Con <code class="mono">useNodeIdCache</code> se evita recalcular, por instancia, el recorrido raíz→nodo en cada pasada.</li>
+        </ul>
+        <div class="callout neu-in">Pruébalo en la pestaña <strong>4 · Simulación de carga</strong>.</div>
+      </article>
+      <article class="glass card">
+        <h3>El árbol como TAD</h3>
+        <p>En <code class="mono">spark.mllib.tree.model</code> cada <code class="mono">Node</code> guarda: <code class="mono">id</code>, <code class="mono">predict</code>, <code class="mono">impurity</code>, <code class="mono">isLeaf</code>, <code class="mono">split</code> (feature, umbral, tipo, categorías), <code class="mono">leftNode</code>, <code class="mono">rightNode</code> y <code class="mono">stats</code> (ganancia).</p>
+        <p>La numeración es la de un <strong>heap</strong>: raíz = 1, hijo izquierdo = 2·i, hijo derecho = 2·i+1; así el nivel de un nodo es ⌊log₂ id⌋.</p>
+        <pre class="code neu-in"><span class="kw">TAD</span> DecisionTreeModel
+  entrenar(datos, params) → modelo   <span class="cm">// trainClassifier / trainRegressor</span>
+  predecir(x) → etiqueta            <span class="cm">// recorrer raíz → hoja</span>
+  depth() → entero
+  numNodes() → entero
+  toDebugString() → texto
+<span class="kw">Invariante</span>: todo nodo interno tiene 2 hijos;
+  hoja ⇔ split = ∅</pre>
+      </article>
+
+      <article class="glass card span2">
+        <h3>Ejemplo (PySpark, API RDD)</h3>
+        <div class="out-tabs">
+          <button class="btn on" data-code="py">Clasificación</button>
+          <button class="btn" data-code="pyr">Regresión</button>
+        </div>
+<pre class="code neu-in" id="codeEx"></pre>
+      </article>
+    </div>
+  </section>
+
+  <!-- ===================== 2. DIDÁCTICA ===================== -->
+  <section class="panel" id="didactica">
+    <div class="section-title"><h2>Parte didáctica</h2><p>Aprende cada pieza manipulándola.</p></div>
+    <div class="grid g2">
+      <!-- Impureza -->
+      <article class="glass card">
+        <h3>① Calculadora de impureza</h3>
+        <p>Mueve las cantidades de cada clase en un nodo y observa Gini y Entropía.</p>
+        <div class="row2" style="margin-top:12px">
+          <div class="ctrl"><label>Clase A <span class="v" id="vA">20</span></label><input type="range" id="cA" min="0" max="50" value="20"></div>
+          <div class="ctrl"><label>Clase B <span class="v" id="vB">10</span></label><input type="range" id="cB" min="0" max="50" value="10"></div>
+        </div>
+        <div class="meter neu-in"><div id="mA" style="background:var(--accent)"></div><div id="mB" style="background:var(--accent-2)"></div></div>
+        <div class="row2">
+          <div class="neu kpi"><div class="k">Gini</div><div class="big-num" id="gVal">0.444</div></div>
+          <div class="neu kpi"><div class="k">Entropía</div><div class="big-num" id="eVal">0.918</div></div>
+        </div>
+        <canvas class="plot neu-in" id="impPlot" style="margin-top:16px" aria-label="Curvas de Gini y Entropía para dos clases"></canvas>
+        <div class="legend"><span><i style="background:var(--accent)"></i>Gini = 2p(1−p)</span><span><i style="background:var(--accent-2)"></i>Entropía</span><span><i style="background:var(--ink)"></i>Nodo actual (p = proporción de A)</span></div>
+      </article>
+
+      <!-- Ganancia -->
+      <article class="glass card">
+        <h3>② Ganancia de información paso a paso</h3>
+        <p>12 estudiantes: ¿aprueban (<span style="color:#1fbf9f">●</span>) o reprueban (<span style="color:#ff6b9d">●</span>)? Elige feature y umbral. MLlib evalúa todos los umbrales candidatos y se queda con el de mayor IG.</p>
+        <div class="row2" style="margin-top:10px">
+          <div class="ctrl"><label>Feature</label><select id="igFeat"><option value="h">Horas de estudio</option><option value="a">Asistencia (%)</option></select></div>
+          <div class="ctrl"><label>Impureza</label><select id="igImp"><option value="gini">gini</option><option value="entropy">entropy</option></select></div>
+        </div>
+        <div class="ctrl"><label>Umbral candidato <span class="v" id="igThrV">–</span></label><input type="range" id="igThr" min="0" max="10" value="5"></div>
+        <canvas class="plot neu-in" id="igPlot" style="height:150px" aria-label="Recta numérica con los estudiantes"></canvas>
+        <table class="ig-table" id="igTable"></table>
+        <div class="btn-row" style="margin-top:14px"><button class="btn primary" id="igBest">Buscar mejor split</button></div>
+        <div class="fb" id="igMsg"></div>
+      </article>
+
+      <!-- Categóricas -->
+      <article class="glass card">
+        <h3>③ ¿Cuántos splits categóricos?</h3>
+        <div class="ctrl"><label>Categorías M <span class="v" id="mV">5</span></label><input type="range" id="mCat" min="2" max="16" value="5"></div>
+        <div class="row2">
+          <div class="ctrl"><label>Problema</label><select id="catAlgo"><option value="bin">Clasificación binaria / regresión</option><option value="multi">Multiclase</option></select></div>
+          <div class="ctrl"><label>maxBins <span class="v" id="cbV">32</span></label><input type="range" id="catBins" min="2" max="128" value="32"></div>
+        </div>
+        <div class="row2">
+          <div class="neu kpi"><div class="k">Particiones posibles 2<sup>M−1</sup>−1</div><div class="big-num" id="catAll">15</div></div>
+          <div class="neu kpi"><div class="k">Candidatos que evalúa MLlib</div><div class="big-num" id="catUsed">4</div></div>
+        </div>
+        <div class="callout neu-in" id="catMsg"></div>
+      </article>
+
+      <!-- Pseudocódigo -->
+      <article class="glass card">
+        <h3>④ Entrenamiento por niveles (pseudocódigo)</h3>
+<pre class="code neu-in"><span class="kw">función</span> entrenar(D, params):
+  bins ← cuantilesAproximados(muestra(D), maxBins)
+  cola ← [raíz(id=1)]
+  <span class="kw">mientras</span> cola ≠ ∅:
+    grupo ← tomarNodos(cola, maxMemoryInMB)   <span class="cm">// mismo nivel</span>
+    <span class="cm">// 1 pasada distribuida sobre D (por particiones)</span>
+    stats ← D.mapPartitions(agregarPorNodoFeatureBin)
+             .reduceByKey(sumar)
+    <span class="kw">para</span> nodo <span class="kw">en</span> grupo:
+      s* ← argmax<sub>s</sub> IG(nodo, s)  <span class="cm">// prefijos sobre bins</span>
+      <span class="kw">si</span> depth = maxDepth <span class="kw">o</span> IG(s*) ≤ minInfoGain
+         <span class="kw">o</span> hijos &lt; minInstancesPerNode:
+        nodo.isLeaf ← verdadero
+      <span class="kw">si no</span>:
+        nodo.split ← s*
+        encolar(hijo 2·id, hijo 2·id+1)
+  <span class="kw">retornar</span> modelo</pre>
+      </article>
+
+      <!-- Quiz -->
+      <article class="glass card span2">
+        <h3>⑤ Autoevaluación</h3>
+        <div id="quiz"></div>
+        <div class="fb" id="quizScore"></div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ===================== 3. SIMULADOR 3D ===================== -->
+  <section class="panel" id="simulador">
+    <div class="section-title"><h2>Simulador 3D</h2><p>Entrena un árbol con el algoritmo de MLlib y míralo crecer.</p></div>
+    <div class="sim-layout">
+      <aside class="glass sidebar" aria-label="Configuración del entrenamiento">
+        <div class="group-title" style="margin-top:0">Datos</div>
+        <div class="ctrl"><label>Dataset</label>
+          <select id="sDataset">
+            <option value="blobs">Grupos gaussianos (3 clases)</option>
+            <option value="xor">XOR (2 clases)</option>
+            <option value="circles">Círculos concéntricos</option>
+            <option value="spiral">Espiral</option>
+            <option value="sine">Superficie sin·cos (regresión)</option>
+          </select></div>
+        <div class="ctrl"><label>Instancias <span class="v" id="sNV">400</span></label><input type="range" id="sN" min="50" max="1500" step="50" value="400"></div>
+        <div class="ctrl"><label>Ruido <span class="v" id="sNoiseV">0.20</span></label><input type="range" id="sNoise" min="0" max="1" step="0.05" value="0.2"></div>
+        <div class="row2">
+          <div class="ctrl"><label>Semilla</label><input type="number" id="sSeed" value="42"></div>
+          <div class="ctrl"><label>&nbsp;</label><button class="btn" id="sRand" style="width:100%;justify-content:center">🎲 Nueva</button></div>
+        </div>
+
+        <div class="group-title">Problema</div>
+        <div class="seg neu-in" id="sAlgo"><button data-v="classification" class="on">Clasificación</button><button data-v="regression">Regresión</button></div>
+        <div class="ctrl" style="margin-top:14px"><label>impurity</label><select id="sImp"><option value="gini">gini</option><option value="entropy">entropy</option></select></div>
+
+        <div class="group-title">Parada</div>
+        <div class="ctrl"><label>maxDepth <span class="v" id="sDepthV">4</span></label><input type="range" id="sDepth" min="0" max="10" value="4"></div>
+        <div class="ctrl"><label>minInstancesPerNode <span class="v" id="sMinV">1</span></label><input type="range" id="sMin" min="1" max="60" value="1"></div>
+        <div class="ctrl"><label>minInfoGain <span class="v" id="sGainV">0.000</span></label><input type="range" id="sGain" min="0" max="0.2" step="0.005" value="0"></div>
+
+        <div class="group-title">Ajuste</div>
+        <div class="ctrl"><label>maxBins <span class="v" id="sBinsV">32</span></label><input type="range" id="sBins" min="2" max="128" value="32"><small>Umbrales = cuantiles aproximados de cada feature.</small></div>
+        <div class="ctrl"><label>maxMemoryInMB <span class="v" id="sMemV">256</span></label><input type="range" id="sMem" min="1" max="512" value="256"></div>
+
+        <div class="btn-row" style="margin-top:18px">
+          <button class="btn primary" id="sGrow">▶ Animar crecimiento</button>
+          <button class="btn" id="sCam">⟲ Cámara</button>
+        </div>
+      </aside>
+
+      <div>
+        <div class="glass viz" id="viz3d">
+          <div class="overlay glass ov-tl" id="vizLegend"></div>
+          <div class="overlay glass ov-tr">🖱️ Arrastra para orbitar · rueda para zoom · <strong>pasa sobre un nodo</strong> para inspeccionarlo · <strong>haz clic en el plano</strong> para predecir un punto.</div>
+          <div class="overlay glass ov-bl mono" id="vizStatus">Cargando Three.js…</div>
+          <div id="nodeTip" class="glass glass-strong"></div>
+          <div class="fallback" id="vizFallback"><div><strong>No se pudo cargar Three.js.</strong><br>Este simulador usa Three.js desde la CDN jsDelivr; revisa tu conexión. El resto del simulador (métricas, debug string y carga) sigue funcionando.</div></div>
+        </div>
+
+        <div class="kpis under">
+          <div class="glass kpi"><div class="k">Profundidad</div><div class="val" id="mDepth">–</div></div>
+          <div class="glass kpi"><div class="k">Nodos</div><div class="val" id="mNodes">–</div></div>
+          <div class="glass kpi"><div class="k">Hojas</div><div class="val" id="mLeaves">–</div></div>
+          <div class="glass kpi"><div class="k" id="mErrK">Error de prueba</div><div class="val" id="mErr">–</div></div>
+          <div class="glass kpi"><div class="k">Pasadas sobre datos</div><div class="val" id="mPasses">–</div></div>
+        </div>
+
+        <div class="grid g2 under">
+          <article class="glass card">
+            <h3>Modelo · <span class="mono" style="font-size:.85rem">toDebugString</span></h3>
+            <div class="out-tabs"><button class="btn on" data-out="debug">Debug</button><button class="btn" data-out="code">Código MLlib</button><button class="btn" data-out="levels">Niveles</button></div>
+            <pre class="code neu-in" id="sOut"></pre>
+          </article>
+          <article class="glass card">
+            <h3>Predicción de un punto</h3>
+            <p style="font-size:.88rem;color:var(--muted)">Haz clic sobre el plano de datos: el punto recorre el árbol desde la raíz (id 1) hasta una hoja, como <code class="mono">model.predict(x)</code>.</p>
+            <div class="probe-box neu-in" style="padding:14px" id="probeBox">Aún no hay punto. Haz clic en el plano 3D.</div>
+            <div class="callout neu-in" style="margin-top:14px;font-size:.84rem">● esferas = entrenamiento (70 %) · ◆ octaedros = prueba (30 %), como <code class="mono">randomSplit([0.7, 0.3])</code>. Las regiones del plano son las hojas del árbol.</div>
+          </article>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 4. SIMULACIÓN DE CARGA ===================== -->
+  <section class="panel" id="carga">
+    <div class="section-title"><h2>Simulación frente a carga</h2><p>Modelo de costos didáctico del entrenamiento distribuido por niveles.</p></div>
+    <div class="load-layout">
+      <aside class="glass sidebar" aria-label="Configuración de carga">
+        <div class="group-title" style="margin-top:0">Carga de datos</div>
+        <div class="ctrl"><label>Instancias N <span class="v" id="lNV">10M</span></label><input type="range" id="lN" min="3" max="9.5" step="0.1" value="7"></div>
+        <div class="ctrl"><label>Features <span class="v" id="lFV">100</span></label><input type="range" id="lF" min="1" max="1000" value="100"></div>
+        <div class="ctrl"><label>subsamplingRate <span class="v" id="lSubV">1.00</span></label><input type="range" id="lSub" min="0.1" max="1" step="0.05" value="1"></div>
+        <div class="seg neu-in" id="lAlgo"><button data-v="classification" class="on">Clasificación</button><button data-v="regression">Regresión</button></div>
+        <div class="ctrl" style="margin-top:14px"><label>numClasses <span class="v" id="lCV">2</span></label><input type="range" id="lC" min="2" max="20" value="2"></div>
+
+        <div class="group-title">Árbol</div>
+        <div class="ctrl"><label>maxDepth <span class="v" id="lDV">10</span></label><input type="range" id="lD" min="1" max="30" value="10"></div>
+        <div class="ctrl"><label>maxBins <span class="v" id="lBV">32</span></label><input type="range" id="lB" min="2" max="256" value="32"></div>
+        <div class="ctrl"><label>minInstancesPerNode <span class="v" id="lMinV">1</span></label><input type="range" id="lMin" min="1" max="1000" value="1"></div>
+
+        <div class="group-title">Clúster</div>
+        <div class="row2">
+          <div class="ctrl"><label>Ejecutores <span class="v" id="lEV">8</span></label><input type="range" id="lE" min="1" max="64" value="8"></div>
+          <div class="ctrl"><label>Núcleos <span class="v" id="lCoV">4</span></label><input type="range" id="lCo" min="1" max="16" value="4"></div>
+        </div>
+        <div class="ctrl"><label>maxMemoryInMB <span class="v" id="lMemV">256</span></label><input type="range" id="lMem" min="16" max="4096" step="16" value="256"></div>
+        <div class="ctrl"><label>Red por ejecutor (MB/s) <span class="v" id="lNetV">120</span></label><input type="range" id="lNet" min="10" max="1250" step="10" value="120"></div>
+        <label class="switch">useNodeIdCache <input type="checkbox" id="lCache"><span class="track"></span></label>
+        <div class="ctrl"><label>checkpointInterval <span class="v" id="lCkV">10</span></label><input type="range" id="lCk" min="1" max="30" value="10"></div>
+
+        <div class="group-title">Animación</div>
+        <div class="ctrl"><label>Velocidad <span class="v" id="lSpV">1×</span></label><input type="range" id="lSp" min="0.25" max="4" step="0.25" value="1"></div>
+        <div class="btn-row"><button class="btn primary" id="lRun">▶ Ejecutar</button><button class="btn" id="lStop">■ Detener</button></div>
+      </aside>
+
+      <div>
+        <div class="kpis">
+          <div class="glass kpi"><div class="k">Tiempo estimado</div><div class="val" id="kTime">–</div></div>
+          <div class="glass kpi"><div class="k">Pasadas</div><div class="val" id="kPasses">–</div></div>
+          <div class="glass kpi"><div class="k">Nodos / pasada</div><div class="val" id="kGroup">–</div></div>
+          <div class="glass kpi"><div class="k">Stats / nodo</div><div class="val" id="kBytes">–</div></div>
+          <div class="glass kpi"><div class="k">Comunicación</div><div class="val" id="kComm">–</div></div>
+        </div>
+        <div class="warn" id="lWarn"></div>
+
+        <div class="grid g2 under">
+          <div class="glass cluster" id="cluster3d">
+            <div class="overlay glass ov-tl mono" id="clStatus">Driver + ejecutores</div>
+            <div class="fallback" id="clFallback"><div>Three.js no disponible: la animación 3D del clúster no se muestra.</div></div>
+          </div>
+          <article class="glass card">
+            <h3>Ejecución simulada</h3>
+            <div style="display:flex;justify-content:space-between;font-size:.82rem;color:var(--muted)"><span id="runLbl">Listo</span><span class="mono" id="runClock">t = 0 s</span></div>
+            <div class="progress neu-in"><div id="runBar"></div></div>
+            <div class="log neu-in" id="runLog" aria-live="polite"></div>
+          </article>
+        </div>
+
+        <div class="grid g2 under">
+          <article class="glass card">
+            <h3>Tiempo por nivel</h3>
+            <canvas class="plot neu-in" id="levelChart" style="height:240px" aria-label="Tiempo estimado por nivel del árbol"></canvas>
+            <div class="legend"><span><i style="background:var(--accent)"></i>Cómputo</span><span><i style="background:var(--accent-2)"></i>Comunicación</span><span><i style="background:var(--accent-3)"></i>Checkpoint</span></div>
+          </article>
+          <article class="glass card">
+            <h3>Escalamiento</h3>
+            <div class="ctrl"><select id="scaleAxis">
+              <option value="N">Tiempo vs instancias N</option>
+              <option value="F">Tiempo vs features</option>
+              <option value="B">Tiempo vs maxBins</option>
+              <option value="D">Tiempo vs maxDepth</option>
+              <option value="E">Tiempo vs ejecutores</option>
+              <option value="M">Pasadas vs maxMemoryInMB</option>
+            </select></div>
+            <canvas class="plot neu-in" id="scaleChart" style="height:200px" aria-label="Curva de escalamiento"></canvas>
+            <div class="legend"><span><i style="background:var(--accent)"></i>Curva del modelo</span><span><i style="background:var(--accent-2)"></i>Configuración actual</span></div>
+          </article>
+        </div>
+        <div class="glass card under" style="font-size:.86rem;color:var(--muted)">
+          <strong style="color:var(--ink)">Supuestos del modelo.</strong> Bytes de estadísticas por nodo = features × maxBins × tamaño de stats × 8 (stats = numClasses en clasificación; 3 — conteo, suma, suma² — en regresión). Nodos por pasada = ⌊maxMemoryInMB / bytes por nodo⌋. Cada pasada recorre las N·subsamplingRate instancias; sin <code class="mono">useNodeIdCache</code> cada instancia recorre el árbol desde la raíz (costo ∝ nivel). La agregación tipo <em>treeAggregate</em> envía las estadísticas de cada ejecutor por la red. Las constantes (≈4·10⁷ operaciones/s por núcleo, 80 ms de overhead por job) son ilustrativas: sirven para comparar configuraciones, no para predecir un clúster real.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="glass">
+    <span>Salomon Avila · Gabriel Jaramillo — Estructuras de datos · Pontificia Universidad Javeriana · Taller 02</span>
+    <span>Basado en la guía <a href="https://spark.apache.org/docs/latest/mllib-decision-tree.html" target="_blank" rel="noopener">Decision Trees – RDD-based API</a></span>
+  </footer>
+</div>
+
+<!-- =====================================================================
+     LÓGICA (script clásico): datos, algoritmo de MLlib, didáctica, carga
+     ===================================================================== -->
+<script>
+/*******************************************
+-Nombres: Salomon Avila, Gabriel Jaramillo
+-Materia: Estructuras de datos
+-Pontificia Universidad Javeriana
+-Taller 02
+-Temas: TADs, implementacion
+*******************************************/
+'use strict';
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const CLASS_COLORS = ['#6c63ff', '#ff6b9d', '#1fbf9f', '#f5a524'];
+
+/* ---------- utilidades ---------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function gauss(r){let u=0,v=0;while(!u)u=r();while(!v)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function lerpHex(a,b,t){const pa=parseInt(a.slice(1),16),pb=parseInt(b.slice(1),16);
+  const r=Math.round(((pa>>16)&255)*(1-t)+((pb>>16)&255)*t),g=Math.round(((pa>>8)&255)*(1-t)+((pb>>8)&255)*t),bl=Math.round((pa&255)*(1-t)+(pb&255)*t);
+  return '#'+((1<<24)|(r<<16)|(g<<8)|bl).toString(16).slice(1);}
+function rampColor(t){t=clamp(t,0,1);return t<.5?lerpHex('#6c63ff','#1fbf9f',t*2):lerpHex('#1fbf9f','#f5a524',(t-.5)*2);}
+function fitCanvas(c){const dpr=Math.min(window.devicePixelRatio||1,2);const w=c.clientWidth,h=c.clientHeight;
+  if(c.width!==Math.round(w*dpr)||c.height!==Math.round(h*dpr)){c.width=Math.round(w*dpr);c.height=Math.round(h*dpr);}
+  const ctx=c.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);return {ctx,w,h};}
+function fmtNum(n){if(n>=1e9)return(n/1e9).toFixed(n>=1e10?0:1)+'B';if(n>=1e6)return(n/1e6).toFixed(n>=1e7?0:1)+'M';if(n>=1e3)return(n/1e3).toFixed(n>=1e4?0:1)+'k';return String(Math.round(n));}
+function fmtBytes(b){const u=['B','KB','MB','GB','TB','PB'];let i=0;while(b>=1024&&i<u.length-1){b/=1024;i++;}return (b>=100?b.toFixed(0):b>=10?b.toFixed(1):b.toFixed(2))+' '+u[i];}
+function fmtTime(s){if(s<1)return (s*1000).toFixed(0)+' ms';if(s<60)return s.toFixed(1)+' s';if(s<3600)return (s/60).toFixed(1)+' min';if(s<86400)return (s/3600).toFixed(1)+' h';return (s/86400).toFixed(1)+' d';}
+
+/* =====================================================================
+   TAD: Árbol de decisión (réplica didáctica del algoritmo de MLlib)
+   ===================================================================== */
+const DT = {
+  impurity(st, kind){
+    if(kind==='variance'){const n=st[0];if(!n)return 0;const m=st[1]/n;return Math.max(0,st[2]/n-m*m);}
+    let n=0;for(const c of st)n+=c;if(!n)return 0;
+    if(kind==='gini'){let s=0;for(const c of st){const p=c/n;s+=p*p;}return 1-s;}
+    let e=0;for(const c of st){if(c>0){const p=c/n;e-=p*Math.log2(p);}}return e;
+  },
+  count(st, reg){return reg?st[0]:st.reduce((a,b)=>a+b,0);},
+  predictOf(st, reg){
+    if(reg)return st[0]?st[1]/st[0]:0;
+    let b=0;for(let i=1;i<st.length;i++)if(st[i]>st[b])b=i;return b;
+  },
+  /* Umbrales por cuantiles aproximados (MLlib los calcula sobre una muestra) */
+  thresholds(values, maxBins){
+    const v=values.slice().sort((a,b)=>a-b),n=v.length,out=[];
+    const nb=Math.min(maxBins,n);
+    for(let i=1;i<nb;i++){
+      const k=Math.floor(i*n/nb);if(k<=0||k>=n||v[k-1]===v[k])continue;
+      const t=(v[k-1]+v[k])/2;if(!out.length||t>out[out.length-1]+1e-12)out.push(t);
+    }
+    return out;
+  },
+  train(data, cfg){
+    const reg=cfg.algo==='regression',kind=reg?'variance':cfg.impurity;
+    const S=reg?3:cfg.numClasses,F=data[0].x.length;
+    const thr=[],bins=[];
+    const binIndex=(arr,v)=>{let lo=0,hi=arr.length;while(lo<hi){const m=(lo+hi)>>1;if(arr[m]<v)lo=m+1;else hi=m;}return lo;};
+    for(let f=0;f<F;f++){thr[f]=DT.thresholds(data.map(d=>d.x[f]),cfg.maxBins);bins[f]=data.map(d=>binIndex(thr[f],d.x[f]));}
+    const newSt=()=>new Array(S).fill(0);
+    const add=(st,y)=>{if(reg){st[0]++;st[1]+=y;st[2]+=y*y;}else st[y]++;};
+    const statsBytes=F*Math.max(2,cfg.maxBins)*S*8;
+    const nodesPerGroup=Math.max(1,Math.floor(cfg.maxMemoryInMB*1048576/statsBytes));
+    const root={id:1,depth:0,idx:data.map((_,i)=>i)};
+    const all=[],levels=[];let frontier=[root],maxDepth=0;
+    while(frontier.length){
+      const next=[];let toSplit=0;
+      for(const node of frontier){
+        const st=newSt();for(const i of node.idx)add(st,data[i].y);
+        node.stats=st;node.n=node.idx.length;node.impurity=DT.impurity(st,kind);node.predict=DT.predictOf(st,reg);
+        node.isLeaf=true;node.gain=0;all.push(node);maxDepth=Math.max(maxDepth,node.depth);
+        if(node.depth>=cfg.maxDepth){node.stop='maxDepth';continue;}
+        if(node.n<2*cfg.minInstancesPerNode){node.stop='minInstancesPerNode';continue;}
+        if(node.impurity<=1e-12){node.stop='nodo puro';continue;}
+        toSplit++;
+        let best=null,validFound=false;
+        for(let f=0;f<F;f++){
+          const nb=thr[f].length;if(!nb)continue;
+          const agg=Array.from({length:nb+1},newSt);
+          for(const i of node.idx){const a=agg[bins[f][i]],y=data[i].y;if(reg){a[0]++;a[1]+=y;a[2]+=y*y;}else a[y]++;}
+          const left=newSt();
+          for(let b=0;b<nb;b++){
+            for(let k=0;k<S;k++)left[k]+=agg[b][k];
+            const right=st.map((v,k)=>v-left[k]);
+            const nL=DT.count(left,reg),nR=node.n-nL;
+            if(nL<cfg.minInstancesPerNode||nR<cfg.minInstancesPerNode)continue;
+            validFound=true;
+            const gain=node.impurity-nL/node.n*DT.impurity(left,kind)-nR/node.n*DT.impurity(right,kind);
+            if(!best||gain>best.gain)best={feature:f,threshold:thr[f][b],gain};
+          }
+        }
+        if(!validFound){node.stop='minInstancesPerNode';continue;}
+        if(!best||best.gain<=1e-12||best.gain<cfg.minInfoGain){node.stop='minInfoGain';node.bestGain=best?best.gain:0;continue;}
+        node.isLeaf=false;node.split={feature:best.feature,threshold:best.threshold};node.gain=best.gain;
+        const L=[],R=[];for(const i of node.idx)(data[i].x[best.feature]<=best.threshold?L:R).push(i);
+        node.left={id:node.id*2,depth:node.depth+1,idx:L,parent:node};
+        node.right={id:node.id*2+1,depth:node.depth+1,idx:R,parent:node};
+        next.push(node.left,node.right);
+      }
+      levels.push({depth:frontier[0].depth,nodes:frontier.length,toSplit,groups:toSplit?Math.ceil(toSplit/nodesPerGroup):0});
+      frontier=next;
+    }
+    return {root,nodes:all,levels,depth:maxDepth,numNodes:all.length,numLeaves:all.filter(n=>n.isLeaf).length,
+      thresholds:thr,statsBytes,nodesPerGroup,reg,kind,numClasses:cfg.numClasses,cfg};
+  },
+  path(model,x){const p=[];let n=model.root;p.push(n);while(!n.isLeaf){n=x[n.split.feature]<=n.split.threshold?n.left:n.right;p.push(n);}return p;},
+  predict(model,x){const p=DT.path(model,x);return p[p.length-1].predict;},
+  debugString(model){
+    const f4=v=>String(+v.toFixed(4));
+    const L=[`DecisionTreeModel ${model.reg?'regressor':'classifier'} of depth ${model.depth} with ${model.numNodes} nodes`];
+    (function rec(n,ind){const pad=' '.repeat(ind);
+      if(n.isLeaf){L.push(`${pad}Predict: ${model.reg?f4(n.predict):n.predict.toFixed(1)}`);return;}
+      L.push(`${pad}If (feature ${n.split.feature} <= ${f4(n.split.threshold)})`);rec(n.left,ind+1);
+      L.push(`${pad}Else (feature ${n.split.feature} > ${f4(n.split.threshold)})`);rec(n.right,ind+1);
+    })(model.root,2);
+    return L.join('\n');
+  },
+  regions(model,showDepth){
+    const out=[];
+    (function rec(n,b){
+      if(n.isLeaf||n.depth>=showDepth){out.push({node:n,b});return;}
+      const f=n.split.feature,t=n.split.threshold,bl=b.slice(),br=b.slice();
+      if(f===0){bl[1]=Math.min(b[1],t);br[0]=Math.max(b[0],t);}else{bl[3]=Math.min(b[3],t);br[2]=Math.max(b[2],t);}
+      rec(n.left,bl);rec(n.right,br);
+    })(model.root,[-1.1,1.1,-1.1,1.1]);
+    return out;
+  }
+};
+window.DT = DT;
+
+/* ---------- Generadores de datos ---------- */
+function genData(type,n,noise,seed){
+  const r=mulberry32(seed>>>0),pts=[];const cl=v=>clamp(v,-1.08,1.08);let numClasses=2,reg=false;
+  if(type==='blobs'){numClasses=3;const C=[[-.5,-.4],[.5,-.35],[0,.55]],sd=.16+noise*.38;
+    for(let i=0;i<n;i++){const k=i%3;pts.push({x:[cl(C[k][0]+gauss(r)*sd),cl(C[k][1]+gauss(r)*sd)],y:k});}}
+  else if(type==='xor'){for(let i=0;i<n;i++){const a=r()*2-1,b=r()*2-1;let y=a*b>0?1:0;if(r()<noise*.3)y=1-y;pts.push({x:[a,b],y});}}
+  else if(type==='circles'){for(let i=0;i<n;i++){const y=i%2,ang=r()*Math.PI*2,rad=(y?.78:.32)+gauss(r)*(.05+noise*.2);pts.push({x:[cl(Math.cos(ang)*rad),cl(Math.sin(ang)*rad)],y});}}
+  else if(type==='spiral'){for(let i=0;i<n;i++){const y=i%2,t=r(),rad=.08+t*.92,th=t*3.2*Math.PI+y*Math.PI,s=.03+noise*.12;pts.push({x:[cl(Math.cos(th)*rad+gauss(r)*s),cl(Math.sin(th)*rad+gauss(r)*s)],y});}}
+  else {reg=true;numClasses=0;for(let i=0;i<n;i++){const a=r()*2-1,b=r()*2-1;pts.push({x:[a,b],y:Math.sin(2.6*a)*Math.cos(2.1*b)+gauss(r)*noise*.3});}}
+  // randomSplit([0.7, 0.3])
+  for(let i=pts.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[pts[i],pts[j]]=[pts[j],pts[i]];}
+  const cut=Math.round(pts.length*.7);
+  return {train:pts.slice(0,cut),test:pts.slice(cut),numClasses,reg};
+}
+
+/* =====================================================================
+   PESTAÑAS
+   ===================================================================== */
+$$('nav.tabs .btn').forEach(b=>b.addEventListener('click',()=>{
+  $$('nav.tabs .btn').forEach(x=>x.classList.toggle('on',x===b));
+  $$('.panel').forEach(p=>p.classList.toggle('active',p.id===b.dataset.tab));
+  requestAnimationFrame(()=>{window.dispatchEvent(new Event('resize'));redrawAll();});
+}));
+function redrawAll(){drawImp();drawIG();drawLoadCharts();}
+
+/* =====================================================================
+   1. CONCEPTUAL — ejemplos de código
+   ===================================================================== */
+const CODE={
+py:`<span class="kw">from</span> pyspark.mllib.tree <span class="kw">import</span> DecisionTree, DecisionTreeModel
+<span class="kw">from</span> pyspark.mllib.util <span class="kw">import</span> MLUtils
+
+<span class="cm"># Cargar y parsear el archivo de datos (formato LIBSVM) a un RDD de LabeledPoint.</span>
+data = MLUtils.loadLibSVMFile(sc, <span class="st">'data/mllib/sample_libsvm_data.txt'</span>)
+<span class="cm"># Separar en entrenamiento y prueba (30% prueba)</span>
+(trainingData, testData) = data.randomSplit([<span class="nu">0.7</span>, <span class="nu">0.3</span>])
+
+<span class="cm"># Entrenar un DecisionTree. categoricalFeaturesInfo vacío ⇒ todas continuas.</span>
+model = DecisionTree.trainClassifier(trainingData, numClasses=<span class="nu">2</span>, categoricalFeaturesInfo={},
+                                     impurity=<span class="st">'gini'</span>, maxDepth=<span class="nu">5</span>, maxBins=<span class="nu">32</span>)
+
+<span class="cm"># Evaluar en el conjunto de prueba y calcular el error</span>
+predictions = model.predict(testData.map(<span class="kw">lambda</span> x: x.features))
+labelsAndPredictions = testData.map(<span class="kw">lambda</span> lp: lp.label).zip(predictions)
+testErr = labelsAndPredictions.filter(
+    <span class="kw">lambda</span> lp: lp[<span class="nu">0</span>] != lp[<span class="nu">1</span>]).count() / float(testData.count())
+print(<span class="st">'Test Error = '</span> + str(testErr))
+print(<span class="st">'Learned classification tree model:'</span>)
+print(model.toDebugString())
+
+<span class="cm"># Guardar y cargar el modelo</span>
+model.save(sc, <span class="st">"target/tmp/myDecisionTreeClassificationModel"</span>)
+sameModel = DecisionTreeModel.load(sc, <span class="st">"target/tmp/myDecisionTreeClassificationModel"</span>)`,
+pyr:`<span class="kw">from</span> pyspark.mllib.tree <span class="kw">import</span> DecisionTree, DecisionTreeModel
+<span class="kw">from</span> pyspark.mllib.util <span class="kw">import</span> MLUtils
+
+data = MLUtils.loadLibSVMFile(sc, <span class="st">'data/mllib/sample_libsvm_data.txt'</span>)
+(trainingData, testData) = data.randomSplit([<span class="nu">0.7</span>, <span class="nu">0.3</span>])
+
+<span class="cm"># Árbol de regresión: la impureza debe ser 'variance'</span>
+model = DecisionTree.trainRegressor(trainingData, categoricalFeaturesInfo={},
+                                    impurity=<span class="st">'variance'</span>, maxDepth=<span class="nu">5</span>, maxBins=<span class="nu">32</span>)
+
+predictions = model.predict(testData.map(<span class="kw">lambda</span> x: x.features))
+labelsAndPredictions = testData.map(<span class="kw">lambda</span> lp: lp.label).zip(predictions)
+testMSE = labelsAndPredictions.map(<span class="kw">lambda</span> lp: (lp[<span class="nu">0</span>] - lp[<span class="nu">1</span>]) * (lp[<span class="nu">0</span>] - lp[<span class="nu">1</span>])).sum() /\\
+    float(testData.count())
+print(<span class="st">'Test Mean Squared Error = '</span> + str(testMSE))
+print(<span class="st">'Learned regression tree model:'</span>)
+print(model.toDebugString())`};
+function showCode(k){$('#codeEx').innerHTML=CODE[k];$$('[data-code]').forEach(b=>b.classList.toggle('on',b.dataset.code===k));}
+$$('[data-code]').forEach(b=>b.addEventListener('click',()=>showCode(b.dataset.code)));
+showCode('py');
+
+/* =====================================================================
+   2. DIDÁCTICA
+   ===================================================================== */
+/* ① impureza */
+function impBin(p,kind){const q=1-p;if(kind==='gini')return 1-p*p-q*q;let e=0;if(p>0)e-=p*Math.log2(p);if(q>0)e-=q*Math.log2(q);return e;}
+function drawImp(){
+  const a=+$('#cA').value,b=+$('#cB').value,n=a+b;
+  $('#vA').textContent=a;$('#vB').textContent=b;
+  const g=DT.impurity([a,b],'gini'),e=DT.impurity([a,b],'entropy');
+  $('#gVal').textContent=g.toFixed(3);$('#eVal').textContent=e.toFixed(3);
+  $('#mA').style.width=(n?a/n*100:50)+'%';$('#mB').style.width=(n?b/n*100:50)+'%';
+  const c=$('#impPlot');if(!c.clientWidth)return;const {ctx,w,h}=fitCanvas(c);
+  const pad={l:36,r:14,t:14,b:26},W=w-pad.l-pad.r,H=h-pad.t-pad.b;
+  const X=p=>pad.l+p*W,Y=v=>pad.t+H-v*H;
+  ctx.strokeStyle='rgba(90,100,150,.18)';ctx.lineWidth=1;ctx.font='10px JetBrains Mono, monospace';ctx.fillStyle='#59618a';
+  for(let i=0;i<=4;i++){const v=i/4;ctx.beginPath();ctx.moveTo(pad.l,Y(v));ctx.lineTo(w-pad.r,Y(v));ctx.stroke();ctx.fillText(v.toFixed(2),4,Y(v)+3);}
+  for(let i=0;i<=4;i++){ctx.fillText((i/4).toFixed(2),X(i/4)-12,h-8);}
+  [['gini','#6c63ff'],['entropy','#ff6b9d']].forEach(([k,col])=>{ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=2.5;
+    for(let i=0;i<=100;i++){const p=i/100,v=impBin(p,k);i?ctx.lineTo(X(p),Y(v)):ctx.moveTo(X(p),Y(v));}ctx.stroke();});
+  if(n){const p=a/n;[[g,'#6c63ff'],[e,'#ff6b9d']].forEach(([v,col])=>{ctx.beginPath();ctx.fillStyle='#fff';ctx.strokeStyle=col;ctx.lineWidth=3;ctx.arc(X(p),Y(v),6,0,7);ctx.fill();ctx.stroke();});
+    ctx.setLineDash([4,4]);ctx.strokeStyle='#1d2340';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(X(p),pad.t);ctx.lineTo(X(p),pad.t+H);ctx.stroke();ctx.setLineDash([]);}
+}
+['#cA','#cB'].forEach(s=>$(s).addEventListener('input',drawImp));
+
+/* ② ganancia de información */
+const STUD=[{h:1,a:40,y:0},{h:2,a:55,y:0},{h:2.5,a:72,y:0},{h:3,a:45,y:0},{h:4,a:82,y:1},{h:4.5,a:60,y:0},
+            {h:5,a:86,y:1},{h:6,a:50,y:1},{h:6.5,a:91,y:1},{h:7,a:76,y:1},{h:8,a:66,y:1},{h:9,a:95,y:1}];
+let igCands=[],igBestIdx=-1,igAnim=null;
+function igCandidates(f){const v=[...new Set(STUD.map(s=>s[f]))].sort((a,b)=>a-b);const c=[];for(let i=1;i<v.length;i++)c.push((v[i-1]+v[i])/2);return c;}
+function igEval(f,t,kind){
+  const L=[0,0],R=[0,0],P=[0,0];STUD.forEach(s=>{P[s.y]++;(s[f]<=t?L:R)[s.y]++;});
+  const n=12,nL=L[0]+L[1],nR=R[0]+R[1],iP=DT.impurity(P,kind),iL=DT.impurity(L,kind),iR=DT.impurity(R,kind);
+  return {P,L,R,nL,nR,iP,iL,iR,ig:iP-nL/n*iL-nR/n*iR};
+}
+function igSetup(){const f=$('#igFeat').value;igCands=igCandidates(f);const s=$('#igThr');s.max=igCands.length-1;if(+s.value>igCands.length-1)s.value=Math.floor(igCands.length/2);igBestIdx=-1;$('#igMsg').textContent='';drawIG();}
+function drawIG(){
+  const f=$('#igFeat').value,kind=$('#igImp').value,k=+$('#igThr').value,t=igCands[k];if(t===undefined)return;
+  $('#igThrV').textContent=(f==='h'?'horas':'asist.')+' ≤ '+t;
+  const r=igEval(f,t,kind);
+  const fmt=v=>v.toFixed(3);
+  $('#igTable').innerHTML=`<tr><th>Conjunto</th><th>N</th><th>Reprueba</th><th>Aprueba</th><th>${kind}</th></tr>
+   <tr><td>Padre D</td><td>12</td><td>${r.P[0]}</td><td>${r.P[1]}</td><td>${fmt(r.iP)}</td></tr>
+   <tr><td>D<sub>izq</sub> (≤ ${t})</td><td>${r.nL}</td><td>${r.L[0]}</td><td>${r.L[1]}</td><td>${fmt(r.iL)}</td></tr>
+   <tr><td>D<sub>der</sub> (&gt; ${t})</td><td>${r.nR}</td><td>${r.R[0]}</td><td>${r.R[1]}</td><td>${fmt(r.iR)}</td></tr>
+   <tr class="${k===igBestIdx?'best':''}"><td><strong>IG</strong> = ${fmt(r.iP)} − ${r.nL}/12·${fmt(r.iL)} − ${r.nR}/12·${fmt(r.iR)}</td><td colspan="4"><strong>${fmt(r.ig)}</strong></td></tr>`;
+  const c=$('#igPlot');if(!c.clientWidth)return;const {ctx,w,h}=fitCanvas(c);
+  const vals=STUD.map(s=>s[f]),mn=Math.min(...vals),mx=Math.max(...vals),pad=26,X=v=>pad+(v-mn)/(mx-mn)*(w-2*pad);
+  ctx.fillStyle='rgba(108,99,255,.08)';ctx.fillRect(0,0,X(t),h);ctx.fillStyle='rgba(255,107,157,.08)';ctx.fillRect(X(t),0,w-X(t),h);
+  ctx.strokeStyle='rgba(90,100,150,.4)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(pad,h*.6);ctx.lineTo(w-pad,h*.6);ctx.stroke();
+  ctx.font='10px JetBrains Mono, monospace';ctx.fillStyle='#59618a';
+  ctx.fillText(String(mn),pad-6,h*.6+22);ctx.fillText(String(mx),w-pad-10,h*.6+22);
+  const seen={};STUD.forEach(s=>{const key=s[f];seen[key]=(seen[key]||0)+1;const yy=h*.6-12-(seen[key]-1)*16;
+    ctx.beginPath();ctx.fillStyle=s.y?'#1fbf9f':'#ff6b9d';ctx.arc(X(s[f]),yy,7,0,7);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();});
+  ctx.setLineDash([5,4]);ctx.strokeStyle='#6c63ff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(X(t),8);ctx.lineTo(X(t),h-8);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#6c63ff';ctx.font='600 11px Inter, sans-serif';ctx.fillText('IG = '+r.ig.toFixed(3),Math.min(X(t)+6,w-80),18);
+  ctx.fillStyle='#ff6b9d';ctx.fillText('● reprueba',8,h-8);ctx.fillStyle='#1fbf9f';ctx.fillText('● aprueba',80,h-8);
+}
+$('#igFeat').addEventListener('change',igSetup);$('#igImp').addEventListener('change',()=>{igBestIdx=-1;$('#igMsg').textContent='';drawIG();});
+$('#igThr').addEventListener('input',drawIG);
+$('#igBest').addEventListener('click',()=>{
+  if(igAnim)clearInterval(igAnim);const f=$('#igFeat').value,kind=$('#igImp').value;let i=0,best=-1,bestIG=-1;igBestIdx=-1;
+  $('#igMsg').textContent='Evaluando candidatos…';
+  igAnim=setInterval(()=>{$('#igThr').value=i;const r=igEval(f,igCands[i],kind);if(r.ig>bestIG+1e-12){bestIG=r.ig;best=i;}drawIG();i++;
+    if(i>=igCands.length){clearInterval(igAnim);igAnim=null;igBestIdx=best;$('#igThr').value=best;drawIG();
+      $('#igMsg').innerHTML=`Mejor split: <strong>${f==='h'?'horas':'asistencia'} ≤ ${igCands[best]}</strong> con IG = <strong>${bestIG.toFixed(3)}</strong> (evaluados ${igCands.length} candidatos). Prueba con la otra feature y compara: MLlib elige el máximo entre todas.`;}
+  },260);
+});
+igSetup();
+
+/* ③ categóricas */
+function drawCat(){
+  const M=+$('#mCat').value,B=+$('#catBins').value,alg=$('#catAlgo').value;$('#mV').textContent=M;$('#cbV').textContent=B;
+  const all=Math.pow(2,M-1)-1;let used,msg;
+  if(alg==='bin'){used=M-1;msg=`Binaria/regresión: MLlib ordena las ${M} categorías por la etiqueta promedio y trata la feature como ordenada ⇒ <strong>M−1 = ${used}</strong> candidatos (es óptimo, no una aproximación).`;}
+  else if(all<=B){used=all;msg=`Multiclase: como 2<sup>M−1</sup>−1 = ${all} ≤ maxBins (${B}), se evalúan <strong>todas</strong> las particiones (feature categórica no ordenada).`;}
+  else{used=M-1;msg=`Multiclase: 2<sup>M−1</sup>−1 = ${all} excede maxBins (${B}); MLlib ordena las categorías por impureza y evalúa <strong>M−1 = ${used}</strong> splits.`;}
+  if(B<M)msg+=` <br><span style="color:#c43a6b">⚠ maxBins debe ser ≥ ${M} (máx. categorías).</span>`;
+  $('#catAll').textContent=all.toLocaleString('es');$('#catUsed').textContent=used.toLocaleString('es');$('#catMsg').innerHTML=msg;
+}
+['#mCat','#catBins'].forEach(s=>$(s).addEventListener('input',drawCat));$('#catAlgo').addEventListener('change',drawCat);drawCat();
+
+/* ⑤ quiz */
+const QUIZ=[
+  {q:'¿Qué impureza debe usarse con un árbol de regresión en MLlib?',o:['gini','entropy','variance'],a:2,e:'La varianza mide la dispersión de una etiqueta continua.'},
+  {q:'Un nodo con 10 instancias de una sola clase tiene Gini igual a…',o:['0','0.5','1'],a:0,e:'Un nodo puro no tiene impureza: Σ f(1−f) = 1·0 = 0.'},
+  {q:'¿Qué parámetro reduce el número de pasadas sobre los datos si se incrementa?',o:['maxBins','maxMemoryInMB','minInfoGain'],a:1,e:'Más memoria permite agregar estadísticas de más nodos en cada pasada.'},
+  {q:'Feature categórica con M = 6 en clasificación binaria. ¿Cuántos candidatos evalúa MLlib?',o:['5','31','63'],a:0,e:'Ordena por etiqueta promedio: M−1 = 5.'},
+  {q:'En la numeración de nodos de MLlib, ¿cuál es el id del hijo derecho del nodo 5?',o:['10','11','6'],a:1,e:'Hijo derecho = 2·i + 1 = 11 (representación tipo heap).'},
+  {q:'La comunicación del entrenamiento escala aproximadamente lineal en…',o:['features y maxBins','instancias y maxDepth','solo instancias'],a:0,e:'Las estadísticas por nodo tienen tamaño features × bins × stats.'}
+];
+const quizState=QUIZ.map(()=>null);
+$('#quiz').innerHTML=QUIZ.map((x,i)=>`<div class="quiz-q neu-in"><strong>${i+1}. ${x.q}</strong><div class="opts">${x.o.map((o,j)=>`<button class="btn" data-q="${i}" data-o="${j}">${o}</button>`).join('')}</div><div class="fb" id="fb${i}"></div></div>`).join('');
+$$('[data-q]').forEach(b=>b.addEventListener('click',()=>{
+  const i=+b.dataset.q,j=+b.dataset.o,ok=j===QUIZ[i].a;quizState[i]=ok;
+  $$(`[data-q="${i}"]`).forEach(x=>x.classList.remove('ok','bad'));b.classList.add(ok?'ok':'bad');
+  $('#fb'+i).textContent=(ok?'✔ Correcto. ':'✘ No exactamente. ')+QUIZ[i].e;
+  const done=quizState.filter(v=>v!==null).length,good=quizState.filter(v=>v).length;
+  $('#quizScore').textContent=`Puntaje: ${good}/${QUIZ.length} (${done} respondidas)`;
+}));
+
+/* =====================================================================
+   3. SIMULADOR — estado + configuración
+   ===================================================================== */
+const SIM={state:null,dataVersion:0,outTab:'debug',probe:null};
+function simCfg(){
+  const algo=$('#sAlgo .on').dataset.v;
+  return {dataset:$('#sDataset').value,n:+$('#sN').value,noise:+$('#sNoise').value,seed:+$('#sSeed').value||0,algo,
+    impurity:algo==='regression'?'variance':$('#sImp').value,maxDepth:+$('#sDepth').value,minInstancesPerNode:+$('#sMin').value,
+    minInfoGain:+$('#sGain').value,maxBins:+$('#sBins').value,maxMemoryInMB:+$('#sMem').value};
+}
+let lastDataKey='';
+function retrain(){
+  const c=simCfg();
+  // el dataset de regresión fuerza algo=regresión y viceversa
+  $('#sNV').textContent=c.n;$('#sNoiseV').textContent=c.noise.toFixed(2);$('#sDepthV').textContent=c.maxDepth;$('#sMinV').textContent=c.minInstancesPerNode;
+  $('#sGainV').textContent=c.minInfoGain.toFixed(3);$('#sBinsV').textContent=c.maxBins;$('#sMemV').textContent=c.maxMemoryInMB;
+  const key=[c.dataset,c.n,c.noise,c.seed].join('|');
+  if(key!==lastDataKey||!SIM.state){SIM.data=genData(c.dataset,c.n,c.noise,c.seed);lastDataKey=key;SIM.dataVersion++;SIM.probe=null;}
+  const d=SIM.data;
+  const model=DT.train(d.train,{...c,numClasses:d.numClasses||2});
+  let err;
+  if(d.reg){err=d.test.reduce((s,p)=>{const e=DT.predict(model,p.x)-p.y;return s+e*e;},0)/d.test.length;}
+  else{err=d.test.filter(p=>DT.predict(model,p.x)!==p.y).length/d.test.length;}
+  const ys=d.train.map(p=>p.y).concat(d.test.map(p=>p.y));
+  SIM.state={cfg:c,data:d,model,err,dataVersion:SIM.dataVersion,yMin:Math.min(...ys),yMax:Math.max(...ys)};
+  $('#mDepth').textContent=model.depth;$('#mNodes').textContent=model.numNodes;$('#mLeaves').textContent=model.numLeaves;
+  $('#mErrK').textContent=d.reg?'MSE de prueba':'Error de prueba';
+  $('#mErr').innerHTML=d.reg?err.toFixed(4):(err*100).toFixed(1)+'<small> %</small>';
+  $('#mPasses').textContent=model.levels.reduce((s,l)=>s+l.groups,0);
+  renderOut();renderLegend();
+  if(SIM.probe)setProbe(SIM.probe.x,true);else $('#probeBox').textContent='Aún no hay punto. Haz clic en el plano 3D.';
+  if(window.Viz3D)window.Viz3D.update(SIM.state);
+}
+function renderLegend(){
+  const s=SIM.state;if(!s)return;const d=s.data;
+  if(d.reg)$('#vizLegend').innerHTML=`<div style="font-weight:600;margin-bottom:4px">Etiqueta (regresión)</div><div style="width:150px;height:10px;border-radius:6px;background:linear-gradient(90deg,#6c63ff,#1fbf9f,#f5a524)"></div><div class="mono" style="display:flex;justify-content:space-between;font-size:.7rem">${s.yMin.toFixed(2)}<span>${s.yMax.toFixed(2)}</span></div>`;
+  else $('#vizLegend').innerHTML=Array.from({length:d.numClasses},(_,k)=>`<div><span class="legend-dot" style="background:${CLASS_COLORS[k]}"></span>Clase ${k}</div>`).join('');
+}
+function renderOut(){
+  const s=SIM.state;if(!s)return;const m=s.model,c=s.cfg,out=$('#sOut');
+  if(SIM.outTab==='debug')out.textContent=DT.debugString(m);
+  else if(SIM.outTab==='code'){
+    out.textContent=c.algo==='regression'
+? `model = DecisionTree.trainRegressor(
+    trainingData, categoricalFeaturesInfo={},
+    impurity='variance', maxDepth=${c.maxDepth}, maxBins=${c.maxBins},
+    minInstancesPerNode=${c.minInstancesPerNode}, minInfoGain=${c.minInfoGain})
+# Test MSE ≈ ${s.err.toFixed(4)}`
+: `model = DecisionTree.trainClassifier(
+    trainingData, numClasses=${s.data.numClasses}, categoricalFeaturesInfo={},
+    impurity='${c.impurity}', maxDepth=${c.maxDepth}, maxBins=${c.maxBins},
+    minInstancesPerNode=${c.minInstancesPerNode}, minInfoGain=${c.minInfoGain})
+# Test Error ≈ ${s.err.toFixed(4)}
+
+// Scala equivalente
+val model = DecisionTree.trainClassifier(trainingData, ${s.data.numClasses}, Map[Int, Int](),
+  "${c.impurity}", ${c.maxDepth}, ${c.maxBins})`;
+  } else {
+    const L=[`Bytes de stats por nodo: ${fmtBytes(m.statsBytes)}  ·  nodos por pasada (maxMemoryInMB=${c.maxMemoryInMB}): ${m.nodesPerGroup}`,
+      `Umbrales candidatos: feature 0 → ${m.thresholds[0].length}, feature 1 → ${m.thresholds[1].length}`,'',
+      'nivel  nodos  a dividir  pasadas'];
+    m.levels.forEach(l=>L.push(`${String(l.depth).padStart(5)}  ${String(l.nodes).padStart(5)}  ${String(l.toSplit).padStart(9)}  ${String(l.groups).padStart(7)}`));
+    const stops={};m.nodes.filter(n=>n.isLeaf).forEach(n=>{stops[n.stop]=(stops[n.stop]||0)+1;});
+    L.push('','Motivo de parada de las hojas:');Object.entries(stops).forEach(([k,v])=>L.push(`  ${k.padEnd(20)} ${v}`));
+    out.textContent=L.join('\n');
+  }
+}
+$$('[data-out]').forEach(b=>b.addEventListener('click',()=>{SIM.outTab=b.dataset.out;$$('[data-out]').forEach(x=>x.classList.toggle('on',x===b));renderOut();}));
+function setProbe(x,silent){
+  const s=SIM.state;if(!s)return;SIM.probe={x};const path=DT.path(s.model,x),leaf=path[path.length-1];
+  const pred=s.data.reg?leaf.predict.toFixed(4):`Clase ${leaf.predict}`;
+  const col=s.data.reg?rampColor((leaf.predict-s.yMin)/(s.yMax-s.yMin||1)):CLASS_COLORS[leaf.predict];
+  $('#probeBox').innerHTML=`<div class="mono">x = [${x[0].toFixed(3)}, ${x[1].toFixed(3)}]</div>
+    <div style="margin-top:6px">Predicción: <strong style="color:${col}">${pred}</strong> · hoja id ${leaf.id} (${leaf.n} instancias, impureza ${leaf.impurity.toFixed(3)})</div>
+    <div class="path">${path.map((n,i)=>`<span>${i?'→ ':''}#${n.id}${n.isLeaf?' hoja':` f${n.split.feature} ${x[n.split.feature]<=n.split.threshold?'≤':'>'} ${n.split.threshold.toFixed(2)}`}</span>`).join('')}</div>`;
+  if(!silent&&window.Viz3D)window.Viz3D.showPath(path,x);
+  return path;
+}
+window.App={get state(){return SIM.state;},setProbe};
+
+let rtTimer=null;const retrainSoon=()=>{clearTimeout(rtTimer);rtTimer=setTimeout(retrain,60);};
+['#sN','#sNoise','#sDepth','#sMin','#sGain','#sBins','#sMem','#sSeed'].forEach(s=>$(s).addEventListener('input',retrainSoon));
+$('#sImp').addEventListener('change',retrain);
+$('#sDataset').addEventListener('change',()=>{const reg=$('#sDataset').value==='sine';setAlgo(reg?'regression':'classification',false);retrain();});
+function setAlgo(v,doTrain=true){
+  $$('#sAlgo button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  const sel=$('#sImp');sel.innerHTML=v==='regression'?'<option value="variance">variance</option>':'<option value="gini">gini</option><option value="entropy">entropy</option>';
+  if(v==='regression'&&$('#sDataset').value!=='sine')$('#sDataset').value='sine';
+  if(v==='classification'&&$('#sDataset').value==='sine')$('#sDataset').value='blobs';
+  if(doTrain)retrain();
+}
+$$('#sAlgo button').forEach(b=>b.addEventListener('click',()=>setAlgo(b.dataset.v)));
+$('#sRand').addEventListener('click',()=>{$('#sSeed').value=Math.floor(Math.random()*9999);retrain();});
+$('#sGrow').addEventListener('click',()=>window.Viz3D&&window.Viz3D.grow(SIM.state));
+$('#sCam').addEventListener('click',()=>window.Viz3D&&window.Viz3D.resetCamera());
+retrain();
+
+/* =====================================================================
+   4. SIMULACIÓN DE CARGA — modelo de costos
+   ===================================================================== */
+const RATE=4e7,JOB_OVERHEAD=0.08,DISK=200*1048576;
+function loadCfg(){
+  return {N:Math.round(Math.pow(10,+$('#lN').value)),F:+$('#lF').value,sub:+$('#lSub').value,algo:$('#lAlgo .on').dataset.v,
+    C:+$('#lC').value,D:+$('#lD').value,B:+$('#lB').value,minInst:+$('#lMin').value,E:+$('#lE').value,cores:+$('#lCo').value,
+    mem:+$('#lMem').value,net:+$('#lNet').value,cache:$('#lCache').checked,ck:+$('#lCk').value};
+}
+function loadPlan(c){
+  const S=c.algo==='regression'?3:c.C,bytesPerNode=c.F*c.B*S*8,nodesPerGroup=Math.max(1,Math.floor(c.mem*1048576/bytesPerNode));
+  const Ns=Math.max(1,c.N*c.sub),cores=c.E*c.cores,bw=c.net*1048576;
+  const levels=[],passes=[];let total=0,bytes=0,tc=0,tm=0,tk=0;
+  for(let d=0;d<c.D;d++){
+    const cap=Math.floor(Ns/(2*c.minInst));if(cap<1)break;
+    const nodes=Math.min(Math.pow(2,d),cap),groups=Math.ceil(nodes/nodesPerGroup);
+    let lc=0,lm=0,lk=0;
+    for(let g=0;g<groups;g++){
+      const nIn=Math.min(nodesPerGroup,nodes-g*nodesPerGroup);
+      const trav=c.cache?1:(d+1);
+      const comp=(Ns*trav*2+Ns*(nIn/nodes)*c.F)/(cores*RATE)+nIn*c.F*c.B*S/(cores*RATE)+JOB_OVERHEAD;
+      const gb=nIn*bytesPerNode,comm=0.02+gb*Math.log2(c.E+1)/bw;
+      bytes+=gb*c.E;lc+=comp;lm+=comm;
+      if(passes.length<5000)passes.push({d,g,groups,nIn,nodes,comp,comm});
+    }
+    if(c.cache&&(d+1)%c.ck===0)lk=Ns*4/(DISK*c.E);
+    const t=lc+lm+lk;levels.push({d,nodes,groups,comp:lc,comm:lm,ck:lk,t});total+=t;tc+=lc;tm+=lm;tk+=lk;
+  }
+  const totalPasses=levels.reduce((s,l)=>s+l.groups,0);
+  return {S,bytesPerNode,nodesPerGroup,levels,passes,total,bytes,tc,tm,tk,totalPasses,Ns};
+}
+let LP=null;
+function updateLoad(){
+  const c=loadCfg();
+  $('#lNV').textContent=fmtNum(c.N);$('#lFV').textContent=c.F;$('#lSubV').textContent=c.sub.toFixed(2);$('#lCV').textContent=c.C;
+  $('#lDV').textContent=c.D;$('#lBV').textContent=c.B;$('#lMinV').textContent=c.minInst;$('#lEV').textContent=c.E;$('#lCoV').textContent=c.cores;
+  $('#lMemV').textContent=c.mem;$('#lNetV').textContent=c.net;$('#lCkV').textContent=c.ck;$('#lSpV').textContent=$('#lSp').value+'×';
+  $('#lC').disabled=c.algo==='regression';
+  const p=loadPlan(c);LP={c,p};
+  $('#kTime').textContent=fmtTime(p.total);$('#kPasses').textContent=p.totalPasses.toLocaleString('es');
+  $('#kGroup').textContent=fmtNum(p.nodesPerGroup);$('#kBytes').textContent=fmtBytes(p.bytesPerNode);$('#kComm').textContent=fmtBytes(p.bytes);
+  const w=[];
+  if(p.bytesPerNode>c.mem*1048576)w.push(`⚠ Las estadísticas de un solo nodo (${fmtBytes(p.bytesPerNode)}) superan maxMemoryInMB: MLlib procesa 1 nodo por pasada.`);
+  if(c.D>=12&&!c.cache)w.push('💡 Árbol profundo: activar useNodeIdCache evita recorrer el árbol desde la raíz en cada pasada.');
+  if(p.levels.length<c.D)w.push(`ℹ El árbol se detiene en el nivel ${p.levels.length}: minInstancesPerNode limita el número de nodos.`);
+  $('#lWarn').innerHTML=w.join('<br>');
+  drawLoadCharts();
+  if(window.Cluster3D)window.Cluster3D.setExecutors(c.E);
+}
+function drawLoadCharts(){if(!LP)return;drawLevelChart(LP.p);drawScale(LP.c);}
+function axisFrame(ctx,w,h,pad,yMax,yFmt){
+  ctx.font='10px JetBrains Mono, monospace';ctx.fillStyle='#59618a';ctx.strokeStyle='rgba(90,100,150,.16)';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){const y=pad.t+(h-pad.t-pad.b)*(1-i/4);ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(w-pad.r,y);ctx.stroke();ctx.fillText(yFmt(yMax*i/4),4,y+3);}
+}
+function drawLevelChart(p){
+  const c=$('#levelChart');if(!c.clientWidth)return;const {ctx,w,h}=fitCanvas(c);const pad={l:58,r:12,t:12,b:24};
+  const L=p.levels;if(!L.length)return;const yMax=Math.max(...L.map(l=>l.t))*1.1||1;axisFrame(ctx,w,h,pad,yMax,fmtTime);
+  const W=w-pad.l-pad.r,H=h-pad.t-pad.b,bw=W/L.length;
+  L.forEach((l,i)=>{let y=pad.t+H;const x=pad.l+i*bw+bw*.15,ww=Math.max(2,bw*.7);
+    [[l.comp,'#6c63ff'],[l.comm,'#ff6b9d'],[l.ck,'#1fbf9f']].forEach(([v,col])=>{const hh=v/yMax*H;if(hh<=0)return;ctx.fillStyle=col;
+      ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y-hh,ww,hh,3);else ctx.rect(x,y-hh,ww,hh);ctx.fill();y-=hh;});
+    if(L.length<=16||i%Math.ceil(L.length/12)===0){ctx.fillStyle='#59618a';ctx.fillText(String(l.d),x+ww/2-3,h-8);}
+    if(RUN.level===i){ctx.strokeStyle='#1d2340';ctx.lineWidth=2;ctx.strokeRect(x-2,pad.t,ww+4,H);}
+  });
+}
+function drawScale(c){
+  const cv=$('#scaleChart');if(!cv.clientWidth)return;const {ctx,w,h}=fitCanvas(cv);const pad={l:58,r:14,t:12,b:24};
+  const ax=$('#scaleAxis').value;let xs,cur,lab,log=false;
+  if(ax==='N'){const top=Math.max(c.N*2,1e4);xs=[];for(let i=0;i<=20;i++)xs.push(Math.max(1e3,Math.round(top*i/20)));cur=c.N;lab=fmtNum;}
+  else if(ax==='F'){xs=[1,10,25,50,100,200,300,400,500,600,700,800,900,1000];cur=c.F;lab=v=>String(v);}
+  else if(ax==='B'){xs=[2,8,16,32,48,64,96,128,160,192,224,256];cur=c.B;lab=v=>String(v);}
+  else if(ax==='D'){xs=[];for(let i=1;i<=30;i++)xs.push(i);cur=c.D;lab=v=>String(v);}
+  else if(ax==='E'){xs=[1,2,4,8,12,16,24,32,48,64];cur=c.E;lab=v=>String(v);}
+  else {xs=[16,32,64,128,256,512,1024,2048,4096];cur=c.mem;log=true;lab=v=>String(v);}
+  const key={N:'N',F:'F',B:'B',D:'D',E:'E',M:'mem'}[ax];
+  const val=x=>{const p=loadPlan({...c,[key]:x});return ax==='M'?p.totalPasses:p.total;};
+  const ys=xs.map(val),yc=val(cur),yMax=Math.max(...ys,yc)*1.1||1,yFmt=ax==='M'?(v=>fmtNum(v)):fmtTime;
+  axisFrame(ctx,w,h,pad,yMax,yFmt);
+  const x0=xs[0],x1=xs[xs.length-1],W=w-pad.l-pad.r,H=h-pad.t-pad.b;
+  const X=v=>pad.l+(log?(Math.log10(v)-Math.log10(x0))/(Math.log10(x1)-Math.log10(x0)):(v-x0)/(x1-x0))*W,Y=v=>pad.t+H-v/yMax*H;
+  const grd=ctx.createLinearGradient(0,pad.t,0,pad.t+H);grd.addColorStop(0,'rgba(108,99,255,.28)');grd.addColorStop(1,'rgba(108,99,255,0)');
+  ctx.beginPath();xs.forEach((x,i)=>i?ctx.lineTo(X(x),Y(ys[i])):ctx.moveTo(X(x),Y(ys[i])));ctx.lineTo(X(x1),pad.t+H);ctx.lineTo(X(x0),pad.t+H);ctx.closePath();ctx.fillStyle=grd;ctx.fill();
+  ctx.beginPath();ctx.strokeStyle='#6c63ff';ctx.lineWidth=2.5;xs.forEach((x,i)=>i?ctx.lineTo(X(x),Y(ys[i])):ctx.moveTo(X(x),Y(ys[i])));ctx.stroke();
+  ctx.beginPath();ctx.fillStyle='#fff';ctx.strokeStyle='#ff6b9d';ctx.lineWidth=3;ctx.arc(X(clamp(cur,x0,x1)),Y(yc),6,0,7);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#59618a';[0,Math.floor(xs.length/2),xs.length-1].forEach(i=>ctx.fillText(lab(xs[i]),clamp(X(xs[i])-12,pad.l,w-40),h-8));
+}
+['#lN','#lF','#lSub','#lC','#lD','#lB','#lMin','#lE','#lCo','#lMem','#lNet','#lCk','#lSp'].forEach(s=>$(s).addEventListener('input',updateLoad));
+$('#lCache').addEventListener('change',updateLoad);$('#scaleAxis').addEventListener('change',drawLoadCharts);
+$$('#lAlgo button').forEach(b=>b.addEventListener('click',()=>{$$('#lAlgo button').forEach(x=>x.classList.toggle('on',x===b));updateLoad();}));
+
+/* ---------- ejecución animada ---------- */
+const RUN={on:false,timer:null,level:-1};
+function logLine(html){const l=$('#runLog');l.insertAdjacentHTML('beforeend',`<div>${html}</div>`);while(l.children.length>300)l.firstChild.remove();l.scrollTop=l.scrollHeight;}
+function stopRun(msg){RUN.on=false;clearTimeout(RUN.timer);RUN.level=-1;if(window.Cluster3D)window.Cluster3D.setPhase('idle');if(msg)$('#runLbl').textContent=msg;drawLoadCharts();}
+$('#lStop').addEventListener('click',()=>{if(RUN.on){stopRun('Detenido');logLine('<span class="wr">■ Ejecución detenida por el usuario</span>');}});
+$('#lRun').addEventListener('click',()=>{
+  stopRun();updateLoad();const {c,p}=LP;if(!p.passes.length)return;
+  RUN.on=true;$('#runLog').innerHTML='';let clock=0,i=0;const steps=p.passes,total=p.total;
+  const animated=Math.min(steps.length,60);  // las demás pasadas se adelantan
+  logLine(`<span class="lv">▶ trainClassifier</span> N=${fmtNum(c.N)} · features=${c.F} · maxBins=${c.B} · maxDepth=${c.D} · ${c.E}×${c.cores} núcleos`);
+  logLine(`Cuantiles aproximados sobre una muestra → ${c.B} bins por feature · ${fmtBytes(p.bytesPerNode)} de stats por nodo · ${p.nodesPerGroup} nodos/pasada`);
+  const tick=()=>{
+    if(!RUN.on)return;
+    if(i>=steps.length){$('#runBar').style.width='100%';$('#runClock').textContent='t = '+fmtTime(total);
+      logLine(`<span class="lv">✔ Modelo listo</span>: ${p.levels.length} niveles, ${p.totalPasses} pasadas, ${fmtBytes(p.bytes)} comunicados, tiempo ≈ ${fmtTime(total)}`);stopRun('Completado');return;}
+    const s=steps[i],sp=+$('#lSp').value;
+    if(RUN.level!==s.d){RUN.level=s.d;drawLevelChart(p);logLine(`<span class="lv">Nivel ${s.d}</span>: ${fmtNum(s.nodes)} nodos en ${s.groups} pasada(s)`);}
+    const fast=i>=animated&&steps.length>animated;
+    if(fast&&i===animated)logLine(`… adelantando ${steps.length-animated} pasadas restantes`);
+    $('#runLbl').textContent=`Nivel ${s.d} · pasada ${s.g+1}/${s.groups}`;
+    const phase=(ph,dur,next)=>{if(window.Cluster3D)window.Cluster3D.setPhase(ph,sp);RUN.timer=setTimeout(next,fast?12:dur/sp);};
+    phase('compute',650,()=>phase('aggregate',600,()=>phase('split',320,()=>{
+      clock+=s.comp+s.comm;$('#runClock').textContent='t = '+fmtTime(clock);$('#runBar').style.width=(clock/total*100)+'%';
+      if(!fast&&s.groups<=4)logLine(`&nbsp;&nbsp;pasada ${s.g+1}: ${fmtNum(s.nIn)} nodos · cómputo ${fmtTime(s.comp)} · red ${fmtTime(s.comm)}`);
+      i++;tick();})));
+  };
+  tick();
+});
+updateLoad();
+window.addEventListener('resize',()=>{clearTimeout(window.__rz);window.__rz=setTimeout(redrawAll,120);});
+redrawAll();
+</script>
+
+<!-- =====================================================================
+     THREE.JS (módulo ES desde CDN)
+     ===================================================================== -->
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {CSS2DRenderer,CSS2DObject} from 'three/addons/renderers/CSS2DRenderer.js';
+import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+
+const CLASS=['#6c63ff','#ff6b9d','#1fbf9f','#f5a524'];
+const ramp=t=>{t=Math.max(0,Math.min(1,t));const a=new THREE.Color('#6c63ff'),b=new THREE.Color('#1fbf9f'),c=new THREE.Color('#f5a524');return t<.5?a.lerp(b,t*2):b.lerp(c,(t-.5)*2);};
+
+function makeRenderer(el){
+  const r=new THREE.WebGLRenderer({antialias:true,alpha:true});
+  r.setPixelRatio(Math.min(window.devicePixelRatio,2));r.setClearColor(0x000000,0);
+  r.toneMapping=THREE.ACESFilmicToneMapping;r.toneMappingExposure=1.05;r.outputColorSpace=THREE.SRGBColorSpace;
+  el.appendChild(r.domElement);return r;
+}
+const glassMat=(o={})=>new THREE.MeshPhysicalMaterial({color:0xffffff,metalness:0,roughness:.08,transmission:1,thickness:.8,ior:1.45,clearcoat:1,clearcoatRoughness:.08,transparent:true,...o});
+
+/* ========================= ÁRBOL 3D ========================= */
+const wrap=document.getElementById('viz3d');
+const renderer=makeRenderer(wrap);
+const labelR=new CSS2DRenderer();labelR.domElement.className='label-layer';wrap.appendChild(labelR.domElement);
+const scene=new THREE.Scene();
+const pmrem=new THREE.PMREMGenerator(renderer);scene.environment=pmrem.fromScene(new RoomEnvironment(),0.04).texture;
+const camera=new THREE.PerspectiveCamera(42,1,0.1,300);
+const controls=new OrbitControls(camera,labelR.domElement);controls.enableDamping=true;controls.maxDistance=60;controls.minDistance=5;
+function resetCamera(){const k=camera.aspect<1?1.55:1;camera.position.set(0,10.5*k,20*k);controls.target.set(0,3.6,-2.5);controls.update();}
+resetCamera();
+scene.add(new THREE.HemisphereLight(0xffffff,0xb9c0ff,1.0));
+const dl=new THREE.DirectionalLight(0xffffff,1.8);dl.position.set(6,16,10);scene.add(dl);
+
+const SC=5,FX=v=>v*SC,FZ=v=>-v*SC;
+const floor=new THREE.Mesh(new THREE.BoxGeometry(11.8,.3,11.8),glassMat({roughness:.45,thickness:.4,transmission:.6,opacity:.92,color:0xf4f5ff}));
+floor.position.y=-.16;scene.add(floor);
+const grid=new THREE.GridHelper(11,22,0x8a84f0,0xc4c9ee);grid.position.y=.003;grid.material.transparent=true;grid.material.opacity=.32;scene.add(grid);
+const pane=new THREE.Mesh(new THREE.BoxGeometry(17,10,.16),glassMat({roughness:.3,thickness:.3,transmission:.85,opacity:.6}));
+pane.position.set(0,5.9,-8.9);scene.add(pane);
+const hitPlane=new THREE.Mesh(new THREE.PlaneGeometry(11,11),new THREE.MeshBasicMaterial({visible:false}));hitPlane.rotation.x=-Math.PI/2;hitPlane.position.y=.02;scene.add(hitPlane);
+
+const gPoints=new THREE.Group(),gRegions=new THREE.Group(),gTree=new THREE.Group(),gProbe=new THREE.Group();
+scene.add(gPoints,gRegions,gTree,gProbe);
+const sphG=new THREE.SphereGeometry(.075,14,10),octG=new THREE.OctahedronGeometry(.1),nodeG=new THREE.SphereGeometry(1,40,28),coreG=new THREE.SphereGeometry(1,24,16),edgeG=new THREE.CylinderGeometry(1,1,1,10,1);
+const shellMat=glassMat(),edgeMat=new THREE.MeshStandardMaterial({color:0xb8bdf5,roughness:.3,metalness:.1,transparent:true,opacity:.85});
+let nodeObjs=[],regionObjs=new Map(),current=null,showDepth=Infinity,growTimer=null;
+
+function clearGroup(g){while(g.children.length){const o=g.children.pop();o.traverse(c=>{if(c.isCSS2DObject&&c.element.parentNode)c.element.parentNode.removeChild(c.element);if(c.material&&c.material!==shellMat&&c.material!==edgeMat)c.material.dispose();});}}
+function colorOf(st,v){return st.data.reg?ramp((v-st.yMin)/((st.yMax-st.yMin)||1)):new THREE.Color(CLASS[v]);}
+function yOf(st,p){return st.data.reg?.08+(p.y-st.yMin)/((st.yMax-st.yMin)||1)*1.4:.09;}
+
+function buildPoints(st){
+  clearGroup(gPoints);const m4=new THREE.Matrix4();
+  [[st.data.train,sphG],[st.data.test,octG]].forEach(([arr,geo])=>{
+    const im=new THREE.InstancedMesh(geo,new THREE.MeshStandardMaterial({roughness:.25,metalness:.05}),arr.length);
+    arr.forEach((p,i)=>{m4.makeTranslation(FX(p.x[0]),yOf(st,p),FZ(p.x[1]));im.setMatrixAt(i,m4);im.setColorAt(i,colorOf(st,p.y));});
+    im.instanceMatrix.needsUpdate=true;if(im.instanceColor)im.instanceColor.needsUpdate=true;gPoints.add(im);
+  });
+}
+function buildRegions(st){
+  clearGroup(gRegions);regionObjs=new Map();
+  DT.regions(st.model,showDepth).forEach(({node,b})=>{
+    const w=(b[1]-b[0])*SC,d=(b[3]-b[2])*SC;if(w<=0||d<=0)return;
+    const m=new THREE.Mesh(new THREE.BoxGeometry(Math.max(.01,w-.03),.035,Math.max(.01,d-.03)),
+      new THREE.MeshStandardMaterial({color:colorOf(st,node.predict),transparent:true,opacity:.30,roughness:.7}));
+    m.position.set(FX((b[0]+b[1])/2),.02,FZ((b[2]+b[3])/2));m.userData.node=node;gRegions.add(m);regionObjs.set(node.id,m);
+  });
+}
+function buildTree(st){
+  clearGroup(gTree);nodeObjs=[];const model=st.model;
+  const isTerm=n=>n.isLeaf||n.depth>=showDepth;
+  const vis=[];(function rec(n){vis.push(n);if(!isTerm(n)){rec(n.left);rec(n.right);}})(model.root);
+  let leaves=0;const px=new Map();
+  (function lay(n){if(isTerm(n)){px.set(n.id,leaves++);return px.get(n.id);}const a=lay(n.left),b=lay(n.right);px.set(n.id,(a+b)/2);return px.get(n.id);})(model.root);
+  const maxD=Math.max(...vis.map(n=>n.depth));
+  const width=Math.min(16,Math.max(1,(leaves-1)*1.75)),dx=leaves>1?width/(leaves-1):0,gap=maxD>0?Math.min(1.9,8.4/maxD):0;
+  const r=Math.max(.12,Math.min(.42,.46-leaves*.006));
+  const P=new Map();vis.forEach(n=>P.set(n.id,new THREE.Vector3(-width/2+px.get(n.id)*dx,10.1-n.depth*gap,-8.6)));
+  const showLabels=vis.length<=63;
+  vis.forEach(n=>{
+    const p=P.get(n.id),term=isTerm(n);
+    const g=new THREE.Group();g.position.copy(p);
+    const shell=new THREE.Mesh(nodeG,shellMat);shell.scale.setScalar(r);
+    const col=term?colorOf(st,n.predict):new THREE.Color('#b9b4ff');
+    const coreMat=new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:term?.35:.15,roughness:.35});
+    const core=new THREE.Mesh(coreG,coreMat);core.scale.setScalar(r*(term?.55:.38));
+    shell.userData.node=n;g.add(shell,core);gTree.add(g);
+    if(!term)[n.left,n.right].forEach(ch=>{const q=P.get(ch.id);const a=p.clone().add(new THREE.Vector3(0,-r,0)),b=q.clone().add(new THREE.Vector3(0,r,0));
+      const dir=b.clone().sub(a),len=dir.length();const e=new THREE.Mesh(edgeG,edgeMat);e.scale.set(.028,len,.028);e.position.copy(a).addScaledVector(dir,.5);
+      e.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.normalize());gTree.add(e);});
+    if(showLabels||n.depth<=2){
+      const div=document.createElement('div');div.className='node-label'+(term?' leaf':'');
+      if(term){div.textContent=st.data.reg?n.predict.toFixed(2):'C'+n.predict;div.style.background='#'+col.getHexString();div.style.opacity='.92';}
+      else div.textContent=`#${n.id} x${n.split.feature}≤${n.split.threshold.toFixed(3)}`;
+      const lab=new CSS2DObject(div);lab.position.set(0,r,0);g.add(lab);
+    }
+    nodeObjs.push({node:n,shell,core,coreMat,group:g,base:coreMat.emissiveIntensity});
+  });
+  document.getElementById('vizStatus').textContent=`profundidad mostrada ${Math.min(showDepth,model.depth)}/${model.depth} · ${vis.length} nodos`;
+}
+function rebuild(st){buildRegions(st);buildTree(st);clearGroup(gProbe);}
+let lastDV=-1;
+function update(st){current=st;if(growTimer){clearTimeout(growTimer);growTimer=null;}showDepth=Infinity;if(st.dataVersion!==lastDV){buildPoints(st);lastDV=st.dataVersion;}rebuild(st);
+  if(window.App&&st&&document.getElementById('probeBox').querySelector('.path')&&lastProbe)showPath(DT.path(st.model,lastProbe),lastProbe);}
+function grow(st){if(!st)return;current=st;if(growTimer)clearTimeout(growTimer);let d=0;
+  const step=()=>{showDepth=d;rebuild(st);d++;if(d<=st.model.depth)growTimer=setTimeout(step,750);else{growTimer=null;showDepth=Infinity;}};step();}
+let lastProbe=null;
+function showPath(path,x){
+  lastProbe=x;nodeObjs.forEach(o=>{o.coreMat.emissiveIntensity=o.base;o.group.scale.setScalar(1);});
+  const ids=new Set(path.map(n=>n.id));nodeObjs.forEach(o=>{if(ids.has(o.node.id)){o.coreMat.emissiveIntensity=1.4;o.group.scale.setScalar(1.22);}});
+  clearGroup(gProbe);const leaf=path[path.length-1],col=current?colorOf(current,leaf.predict):new THREE.Color('#fff');
+  const s=new THREE.Mesh(new THREE.SphereGeometry(.2,24,16),new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:.8}));
+  s.position.set(FX(x[0]),.35,FZ(x[1]));gProbe.add(s);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(.34,.035,10,40),new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xffffff,emissiveIntensity:.4}));
+  ring.rotation.x=Math.PI/2;ring.position.copy(s.position).setY(.06);ring.userData.spin=true;gProbe.add(ring);
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(.015,.015,3,6),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.5}));beam.position.copy(s.position).setY(1.8);gProbe.add(beam);
+}
+
+/* interacción */
+const ray=new THREE.Raycaster(),mouse=new THREE.Vector2(),tip=document.getElementById('nodeTip');let downAt=null,hovered=null;
+function toMouse(e){const r=labelR.domElement.getBoundingClientRect();mouse.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);return r;}
+const isDesc=(d,a)=>{while(d>a)d>>=1;return d===a;};
+labelR.domElement.addEventListener('pointermove',e=>{
+  const r=toMouse(e);ray.setFromCamera(mouse,camera);const hit=ray.intersectObjects(nodeObjs.map(o=>o.shell))[0];
+  const n=hit?hit.object.userData.node:null;
+  if(n!==hovered){hovered=n;regionObjs.forEach(m=>{m.material.opacity=n?(isDesc(m.userData.node.id,n.id)?.62:.12):.30;});}
+  if(!n){tip.style.display='none';labelR.domElement.style.cursor='grab';return;}
+  labelR.domElement.style.cursor='pointer';const st=current,reg=st.data.reg,term=n.isLeaf||n.depth>=showDepth;
+  const dist=reg?`μ = ${n.predict.toFixed(3)}`:n.stats.map((c,k)=>`<span style="color:${CLASS[k]}">${c}</span>`).join(' / ');
+  tip.innerHTML=`<h4>Nodo #${n.id} ${term?'· hoja':''}</h4>
+   <div class="r"><span>nivel</span><span>${n.depth}</span></div><div class="r"><span>instancias</span><span>${n.n}</span></div>
+   <div class="r"><span>${st.model.kind}</span><span>${n.impurity.toFixed(4)}</span></div><div class="r"><span>${reg?'predict':'conteos'}</span><span>${dist}</span></div>
+   ${!term?`<div class="r"><span>split</span><span>x${n.split.feature} ≤ ${n.split.threshold.toFixed(3)}</span></div><div class="r"><span>ganancia</span><span>${n.gain.toFixed(4)}</span></div>`:
+     `<div class="r"><span>predict</span><span>${reg?n.predict.toFixed(3):'clase '+n.predict}</span></div>${n.isLeaf?`<div class="r"><span>parada</span><span>${n.stop}</span></div>`:''}`}`;
+  tip.style.display='block';const x=e.clientX-r.left+16,y=e.clientY-r.top+16;
+  tip.style.left=Math.min(x,r.width-tip.offsetWidth-8)+'px';tip.style.top=Math.min(y,r.height-tip.offsetHeight-8)+'px';
+});
+labelR.domElement.addEventListener('pointerleave',()=>{tip.style.display='none';hovered=null;regionObjs.forEach(m=>m.material.opacity=.30);});
+labelR.domElement.addEventListener('pointerdown',e=>{downAt=[e.clientX,e.clientY];});
+labelR.domElement.addEventListener('pointerup',e=>{
+  if(!downAt||Math.hypot(e.clientX-downAt[0],e.clientY-downAt[1])>5||!current)return;
+  toMouse(e);ray.setFromCamera(mouse,camera);const h=ray.intersectObject(hitPlane)[0];if(!h)return;
+  const x=[Math.max(-1.1,Math.min(1.1,h.point.x/SC)),Math.max(-1.1,Math.min(1.1,-h.point.z/SC))];
+  const path=window.App.setProbe(x,true);showPath(path,x);
+});
+
+/* ========================= CLÚSTER 3D ========================= */
+const cw=document.getElementById('cluster3d');
+const cr=makeRenderer(cw);const cs=new THREE.Scene();cs.environment=scene.environment;
+const ccam=new THREE.PerspectiveCamera(40,1,.1,100);ccam.position.set(0,6.5,10.5);ccam.lookAt(0,.4,0);
+cs.add(new THREE.HemisphereLight(0xffffff,0xbfc4ff,1.0));const cdl=new THREE.DirectionalLight(0xffffff,1.6);cdl.position.set(4,10,6);cs.add(cdl);
+const base=new THREE.Mesh(new THREE.CylinderGeometry(5.6,5.6,.25,64),glassMat({roughness:.45,transmission:.6,thickness:.3,color:0xf4f5ff,opacity:.9}));base.position.y=-.9;cs.add(base);
+const driver=new THREE.Group();const dShell=new THREE.Mesh(new THREE.IcosahedronGeometry(.95,1),glassMat());
+const dCoreMat=new THREE.MeshStandardMaterial({color:'#6c63ff',emissive:'#6c63ff',emissiveIntensity:.4});const dCore=new THREE.Mesh(new THREE.IcosahedronGeometry(.45,0),dCoreMat);
+driver.add(dShell,dCore);driver.position.y=.5;cs.add(driver);
+const gExec=new THREE.Group();cs.add(gExec);let execs=[];
+const P_MAX=420,pIM=new THREE.InstancedMesh(new THREE.SphereGeometry(.07,10,8),new THREE.MeshBasicMaterial({color:0xffffff}),P_MAX);
+pIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);cs.add(pIM);const parts=Array.from({length:P_MAX},()=>({on:false}));
+const zero=new THREE.Matrix4().makeScale(0,0,0);for(let i=0;i<P_MAX;i++){pIM.setMatrixAt(i,zero);pIM.setColorAt(i,new THREE.Color('#fff'));}
+let phase='idle',speed=1,phaseT=0;
+function setExecutors(E){
+  clearGroup(gExec);execs=[];const shown=Math.min(E,24),R=4;
+  for(let i=0;i<shown;i++){const a=i/shown*Math.PI*2,g=new THREE.Group();g.position.set(Math.cos(a)*R,-.2,Math.sin(a)*R);
+    const sh=new THREE.Mesh(new THREE.BoxGeometry(.75,.75,.75),glassMat({roughness:.12}));
+    const cm=new THREE.MeshStandardMaterial({color:'#1fbf9f',emissive:'#1fbf9f',emissiveIntensity:.25});const co=new THREE.Mesh(new THREE.BoxGeometry(.36,.36,.36),cm);
+    g.add(sh,co);
+    const dir=new THREE.Vector3().subVectors(driver.position,g.position),len=dir.length();
+    const link=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,len,6),new THREE.MeshBasicMaterial({color:0xaab0f0,transparent:true,opacity:.5}));
+    link.position.copy(g.position).addScaledVector(dir,.5);link.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.normalize());
+    gExec.add(g,link);execs.push({g,cm,co});}
+  document.getElementById('clStatus').textContent=`Driver + ${E} ejecutores${E>24?' (se muestran 24)':''}`;
+}
+function spawn(from,to,col){const i=parts.findIndex(p=>!p.on);if(i<0)return;const p=parts[i];p.on=true;p.t=0;p.from=from.clone();p.to=to.clone();p.spd=.9+Math.random()*.6;
+  p.mid=from.clone().lerp(to,.5);p.mid.y+=1.2+Math.random();pIM.setColorAt(i,new THREE.Color(col));pIM.instanceColor.needsUpdate=true;}
+function setPhase(ph,sp=1){phase=ph;speed=sp;phaseT=0;
+  const names={compute:'⚙ Ejecutores agregan stats por (nodo, feature, bin)',aggregate:'⇢ treeAggregate / reduceByKey → driver',split:'★ Driver elige el mejor split y difunde el árbol',idle:'Driver + ejecutores'};
+  if(ph!=='idle')document.getElementById('clStatus').textContent=names[ph];}
+
+/* ========================= BUCLE ========================= */
+function sizeTo(el,r,cam,extra){const w=el.clientWidth,h=el.clientHeight;if(!w||!h)return false;const s=r.getSize(new THREE.Vector2());
+  if(s.x!==w||s.y!==h){const first=s.x===0||(s.x/s.y<1)!==(w/h<1);r.setSize(w,h);if(extra)extra.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix();if(first&&cam===camera)resetCamera();}return true;}
+const clock=new THREE.Clock();const tmpM=new THREE.Matrix4(),tmpV=new THREE.Vector3();
+function loop(){
+  requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.05),t=clock.elapsedTime;
+  if(wrap.offsetParent&&sizeTo(wrap,renderer,camera,labelR)){controls.update();
+    gProbe.children.forEach(o=>{if(o.userData.spin)o.rotation.z+=dt*2;});
+    renderer.render(scene,camera);labelR.render(scene,camera);}
+  if(cw.offsetParent&&sizeTo(cw,cr,ccam)){
+    phaseT+=dt*speed;driver.rotation.y+=dt*.4;dShell.rotation.x+=dt*.15;
+    dCoreMat.emissiveIntensity=phase==='split'?1.2+Math.sin(t*20)*.4:.4;driver.scale.setScalar(phase==='split'?1.08:1);
+    execs.forEach((e,i)=>{const act=phase==='compute';e.cm.emissiveIntensity=act?.7+Math.sin(t*12+i)*.4:.25;e.co.rotation.y+=dt*(act?4:.4);e.g.position.y=-.2+(act?Math.sin(t*8+i)*.06:0);});
+    if(execs.length&&Math.random()<dt*60*speed*.55){
+      if(phase==='aggregate'){const e=execs[Math.floor(Math.random()*execs.length)];spawn(e.g.position,driver.position,'#ff6b9d');}
+      if(phase==='split'){const e=execs[Math.floor(Math.random()*execs.length)];spawn(driver.position,e.g.position,'#6c63ff');}
+    }
+    parts.forEach((p,i)=>{if(!p.on)return;p.t+=dt*p.spd*speed*1.4;if(p.t>=1){p.on=false;pIM.setMatrixAt(i,zero);return;}
+      const u=p.t,a=p.from,m=p.mid,b=p.to;tmpV.set((1-u)*(1-u)*a.x+2*(1-u)*u*m.x+u*u*b.x,(1-u)*(1-u)*a.y+2*(1-u)*u*m.y+u*u*b.y,(1-u)*(1-u)*a.z+2*(1-u)*u*m.z+u*u*b.z);
+      tmpM.makeTranslation(tmpV.x,tmpV.y,tmpV.z);pIM.setMatrixAt(i,tmpM);});
+    pIM.instanceMatrix.needsUpdate=true;cs.rotation.y+=dt*.05;cr.render(cs,ccam);
+  }
+}
+window.Viz3D={update,grow,showPath,resetCamera};
+window.Cluster3D={setExecutors,setPhase};
+setExecutors(+document.getElementById('lE').value);
+if(window.App&&window.App.state)update(window.App.state);
+loop();
+</script>
+<script>
+/* Si el módulo de Three.js no carga (sin red), mostramos un aviso; el resto sigue funcionando. */
+window.addEventListener('load',()=>setTimeout(()=>{if(!window.Viz3D){document.getElementById('vizFallback').style.display='grid';document.getElementById('clFallback').style.display='grid';document.getElementById('vizStatus').textContent='Three.js no disponible';}},2500));
+</script>
+</body>
+</html>
