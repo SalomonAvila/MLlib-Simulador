@@ -3,7 +3,8 @@
 ```
 /*******************************************
 -Nombre: Salomon Avila
--Materia: HPC
+-Materia: HPC (Computacion de Alto Rendimiento)
+-Maestria en Inteligencia Artificial
 -Pontificia Universidad Javeriana
 -Taller 02
 -Temas: Arbol de decision, implementacion
