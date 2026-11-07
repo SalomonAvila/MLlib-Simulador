@@ -140,6 +140,8 @@ nav.tabs{position:sticky;top:10px;z-index:30;margin:22px 0;padding:8px;display:f
 nav.tabs .btn{flex:1 1 180px;justify-content:center;padding:.85rem 1rem}
 nav.tabs .btn .n{font:600 .72rem var(--mono);width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;background:var(--surface);border:1px solid var(--border);color:var(--muted)}
 nav.tabs .btn.on .n{background:var(--accent-soft);border-color:#BFDBFE;color:var(--accent-hover)}
+.subnav{max-width:520px;margin:-8px auto 22px}
+.subnav[hidden]{display:none}
 .panel{display:none;animation:fade .3s ease}
 .panel.active{display:block}
 @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -311,14 +313,90 @@ footer{margin-top:36px;padding:18px 22px;display:flex;flex-wrap:wrap;justify-con
 
   <!-- ===================== NAVEGACIÓN ===================== -->
   <nav class="tabs glass" role="tablist">
-    <button class="btn on" data-tab="conceptual" role="tab"><span class="n">1</span> Conceptual</button>
-    <button class="btn" data-tab="didactica" role="tab"><span class="n">2</span> Didáctica</button>
-    <button class="btn" data-tab="simulador" role="tab"><span class="n">3</span> Simulador 3D</button>
-    <button class="btn" data-tab="carga" role="tab"><span class="n">4</span> Simulación de carga</button>
+    <button class="btn on" data-tab="autor" role="tab"><span class="n">1</span> Autor y membrete</button>
+    <button class="btn" data-tab="objetivos" role="tab"><span class="n">2</span> Objetivos y contexto</button>
+    <button class="btn" data-tab="aprendizaje" role="tab"><span class="n">3</span> Didáctica y conceptual</button>
+    <button class="btn" data-tab="simulacion" role="tab"><span class="n">4</span> Simulador frente a carga</button>
   </nav>
+  <div class="subnav seg neu-in" id="subnav" hidden></div>
 
-  <!-- ===================== 1. CONCEPTUAL ===================== -->
-  <section class="panel active" id="conceptual">
+  <!-- ===================== 1. AUTOR Y MEMBRETE ===================== -->
+  <section class="panel active" id="autor" data-group="autor">
+    <div class="section-title"><h2>Autor y membrete</h2><p>Datos del taller.</p></div>
+    <div class="grid g2">
+      <article class="glass card">
+        <h3>Membrete</h3>
+<pre class="code neu-in" aria-label="Membrete del taller"><span class="cm">/*******************************************</span>
+-Nombre: <span class="kw">Salomon Avila</span>
+-Materia: <span class="kw">HPC (Computacion de Alto Rendimiento)</span>
+-<span class="kw">Maestria en Inteligencia Artificial</span>
+-<span class="kw">Pontificia Universidad Javeriana</span>
+-Taller <span class="nu">02</span>
+-Temas: Arbol de decision, implementacion
+        de arboles de decision de Spark MLlib, simulacion
+<span class="cm">*******************************************/</span></pre>
+        <p style="font-size:.86rem;color:var(--muted);margin-top:12px">El mismo membrete va como comentario en la primera línea del código fuente de este HTML.</p>
+      </article>
+      <article class="glass card">
+        <h3>Autor</h3>
+        <div class="tbl-wrap"><table class="tbl">
+          <tbody>
+            <tr><th>Autor</th><td>Salomon Avila</td></tr>
+            <tr><th>Programa</th><td>Maestría en Inteligencia Artificial</td></tr>
+            <tr><th>Materia</th><td>HPC — Computación de Alto Rendimiento</td></tr>
+            <tr><th>Institución</th><td>Pontificia Universidad Javeriana</td></tr>
+            <tr><th>Entrega</th><td>Taller 02</td></tr>
+            <tr><th>Tema</th><td>Árboles de decisión en Spark MLlib (API basada en RDD)</td></tr>
+            <tr><th>Tecnologías</th><td>HTML, CSS y JavaScript estáticos · Three.js 0.160 · un solo archivo</td></tr>
+            <tr><th>Fuente</th><td><a href="https://spark.apache.org/docs/latest/mllib-decision-tree.html" target="_blank" rel="noopener">Decision Trees – RDD-based API</a> (Spark 4.3.0)</td></tr>
+          </tbody>
+        </table></div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ===================== 2. OBJETIVOS Y CONTEXTO ===================== -->
+  <section class="panel" id="objetivos" data-group="objetivos">
+    <div class="section-title"><h2>Objetivos y contexto</h2><p>Qué busca este simulador y por qué importa en HPC.</p></div>
+    <div class="grid g2">
+      <article class="glass card">
+        <h3>Objetivo general</h3>
+        <p>Comprender, mediante un simulador interactivo, cómo Spark MLlib entrena árboles de decisión de forma distribuida y cómo el costo del entrenamiento responde a la carga de datos y a la configuración del algoritmo y del clúster.</p>
+        <h3 style="margin-top:18px">Objetivos específicos</h3>
+        <ol class="steps">
+          <li class="neu-in">Explicar los fundamentos del algoritmo: impureza (Gini, entropía, varianza), ganancia de información, candidatos de split por <em>bins</em> y reglas de parada.</li>
+          <li class="neu-in">Experimentar con los parámetros de MLlib (<code class="mono">maxDepth</code>, <code class="mono">maxBins</code>, <code class="mono">minInstancesPerNode</code>, <code class="mono">minInfoGain</code>…) y observar su efecto en el árbol y en el error de prueba.</li>
+          <li class="neu-in">Analizar cómo escalan el cómputo y la comunicación con las instancias, las features, <code class="mono">maxBins</code>, <code class="mono">maxMemoryInMB</code> y el número de ejecutores.</li>
+          <li class="neu-in">Relacionar el entrenamiento con conceptos de HPC: paralelismo de datos, agregación distribuida, costo de red frente a cómputo y memoria como restricción.</li>
+        </ol>
+      </article>
+      <article class="glass card">
+        <h3>Contexto</h3>
+        <p>Cuando los datos no caben o no se procesan a tiempo en una sola máquina, el entrenamiento de modelos se vuelve un problema de <strong>computación de alto rendimiento</strong>. Apache Spark reparte el trabajo entre ejecutores de un clúster, y su biblioteca MLlib incluye árboles de decisión que <strong>particionan los datos por filas</strong> para entrenar de forma distribuida con millones de instancias.</p>
+        <p>En cada pasada sobre los datos, cada ejecutor calcula estadísticas parciales de sus filas (por nodo, feature y bin); esas estadísticas se agregan por la red y con ellas se elige el mejor split. Por eso el tiempo de entrenamiento depende del equilibrio entre <strong>cómputo</strong> (lineal en instancias, features y <code class="mono">maxBins</code>) y <strong>comunicación</strong> (lineal en features y <code class="mono">maxBins</code>), y de cuántos nodos caben en memoria por pasada.</p>
+        <p style="font-size:.86rem;color:var(--muted)">Este simulador usa la API basada en RDD (<code class="mono">spark.mllib</code>). En Spark, esa API está en modo mantenimiento y la API principal de machine learning es <code class="mono">spark.ml</code>, basada en DataFrames; los conceptos del algoritmo son los mismos.</p>
+      </article>
+      <article class="glass card">
+        <h3>Cómo usar el simulador</h3>
+        <ol class="steps">
+          <li class="neu-in"><strong>Didáctica y conceptual:</strong> lee la teoría (según la guía oficial) y practica con la calculadora de impureza, la ganancia de información paso a paso y el quiz.</li>
+          <li class="neu-in"><strong>Simulador frente a carga → Simulador 3D:</strong> elige un dataset, ajusta los parámetros y observa cómo crece el árbol; haz clic en el plano para predecir un punto.</li>
+          <li class="neu-in"><strong>Simulador frente a carga → Carga del clúster:</strong> cambia el tamaño de los datos y del clúster, ejecuta la simulación y compara las curvas de escalamiento.</li>
+        </ol>
+      </article>
+      <article class="glass card">
+        <h3>Alcance y limitaciones</h3>
+        <ul class="clean">
+          <li>El Simulador 3D <strong>entrena de verdad</strong> en el navegador, replicando el algoritmo de MLlib (bins por cuantiles, ganancia de información y reglas de parada), pero en una sola máquina y con datos de 2 features.</li>
+          <li>La carga del clúster usa un <strong>modelo de costos didáctico</strong>: sus constantes son ilustrativas y sirven para comparar configuraciones, no para predecir el tiempo de un clúster real.</li>
+          <li>Las features categóricas se explican en la parte conceptual y didáctica; los datasets del simulador solo tienen features continuas.</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <!-- ===================== 3. DIDÁCTICA Y CONCEPTUAL · Conceptual ===================== -->
+  <section class="panel" id="conceptual" data-group="aprendizaje">
     <div class="section-title"><h2>Marco conceptual</h2><p>Decision Trees – RDD-based API · Spark 4.3.0, según la guía oficial.</p></div>
     <div class="grid g2">
       <article class="glass card">
@@ -416,7 +494,7 @@ footer{margin-top:36px;padding:18px 22px;display:flex;flex-wrap:wrap;justify-con
           <li>La <strong>comunicación</strong> escala aproximadamente de forma lineal en el número de features y en <code class="mono">maxBins</code>.</li>
           <li>El algoritmo lee datos dispersos (<em>sparse</em>) y densos, pero <strong>no está optimizado para entradas dispersas</strong>.</li>
         </ul>
-        <div class="callout neu-in">Pruébalo en la pestaña <strong>4 · Simulación de carga</strong>.</div>
+        <div class="callout neu-in">Pruébalo en <strong>4 · Simulador frente a carga → Carga del clúster</strong>.</div>
       </article>
 
       <article class="glass card span2">
@@ -432,8 +510,8 @@ footer{margin-top:36px;padding:18px 22px;display:flex;flex-wrap:wrap;justify-con
     </div>
   </section>
 
-  <!-- ===================== 2. DIDÁCTICA ===================== -->
-  <section class="panel" id="didactica">
+  <!-- ===================== 3. DIDÁCTICA Y CONCEPTUAL · Didáctica ===================== -->
+  <section class="panel" id="didactica" data-group="aprendizaje">
     <div class="section-title"><h2>Parte didáctica</h2><p>Aprende cada pieza manipulándola.</p></div>
     <div class="grid g2">
       <!-- Impureza -->
@@ -514,8 +592,8 @@ footer{margin-top:36px;padding:18px 22px;display:flex;flex-wrap:wrap;justify-con
     </div>
   </section>
 
-  <!-- ===================== 3. SIMULADOR 3D ===================== -->
-  <section class="panel" id="simulador">
+  <!-- ===================== 4. SIMULADOR FRENTE A CARGA · Simulador 3D ===================== -->
+  <section class="panel" id="simulador" data-group="simulacion">
     <div class="section-title"><h2>Simulador 3D</h2><p>Entrena un árbol con el algoritmo de MLlib y míralo crecer.</p></div>
     <div class="sim-layout">
       <aside class="glass sidebar" aria-label="Configuración del entrenamiento">
@@ -588,9 +666,9 @@ footer{margin-top:36px;padding:18px 22px;display:flex;flex-wrap:wrap;justify-con
     </div>
   </section>
 
-  <!-- ===================== 4. SIMULACIÓN DE CARGA ===================== -->
-  <section class="panel" id="carga">
-    <div class="section-title"><h2>Simulación frente a carga</h2><p>Modelo de costos didáctico del entrenamiento distribuido por niveles.</p></div>
+  <!-- ===================== 4. SIMULADOR FRENTE A CARGA · Carga del clúster ===================== -->
+  <section class="panel" id="carga" data-group="simulacion">
+    <div class="section-title"><h2>Carga del clúster</h2><p>Modelo de costos didáctico del entrenamiento distribuido.</p></div>
     <div class="load-layout">
       <aside class="glass sidebar" aria-label="Configuración de carga">
         <div class="group-title" style="margin-top:0">Carga de datos</div>
@@ -820,11 +898,23 @@ function genData(type,n,noise,seed){
 /* =====================================================================
    PESTAÑAS
    ===================================================================== */
-$$('nav.tabs .btn').forEach(b=>b.addEventListener('click',()=>{
-  $$('nav.tabs .btn').forEach(x=>x.classList.toggle('on',x===b));
-  $$('.panel').forEach(p=>p.classList.toggle('active',p.id===b.dataset.tab));
+const GROUPS={autor:[['autor','Autor y membrete']],objetivos:[['objetivos','Objetivos y contexto']],
+  aprendizaje:[['conceptual','Conceptual'],['didactica','Didáctica']],
+  simulacion:[['simulador','Simulador 3D'],['carga','Carga del clúster']]};
+function showPanel(id){
+  $$('.panel').forEach(p=>p.classList.toggle('active',p.id===id));
+  $$('#subnav button').forEach(x=>x.classList.toggle('on',x.dataset.panel===id));
   requestAnimationFrame(()=>{window.dispatchEvent(new Event('resize'));redrawAll();});
-}));
+}
+function showGroup(g){
+  $$('nav.tabs .btn').forEach(x=>x.classList.toggle('on',x.dataset.tab===g));
+  const items=GROUPS[g],sub=$('#subnav');
+  sub.hidden=items.length<2;
+  sub.innerHTML=items.length<2?'':items.map(([id,l])=>`<button data-panel="${id}">${l}</button>`).join('');
+  $$('#subnav button').forEach(x=>x.addEventListener('click',()=>showPanel(x.dataset.panel)));
+  showPanel(items[0][0]);
+}
+$$('nav.tabs .btn').forEach(b=>b.addEventListener('click',()=>showGroup(b.dataset.tab)));
 function redrawAll(){drawImp();drawIG();drawLoadCharts();}
 
 /* =====================================================================
