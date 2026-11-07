@@ -3,10 +3,10 @@
 ```
 /*******************************************
 -Nombre: Salomon Avila
--Materia: Estructuras de datos
+-Materia: HPC
 -Pontificia Universidad Javeriana
 -Taller 02
--Temas: TADs (arbol binario de decision), implementacion
+-Temas: Arbol de decision, implementacion
         de arboles de decision de Spark MLlib, simulacion
 *******************************************/
 ```
