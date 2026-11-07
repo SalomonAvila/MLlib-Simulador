@@ -2,11 +2,12 @@
 
 ```
 /*******************************************
--Nombres: Salomon Avila, Gabriel Jaramillo
+-Nombre: Salomon Avila
 -Materia: Estructuras de datos
 -Pontificia Universidad Javeriana
 -Taller 02
--Temas: TADs, implementacion
+-Temas: TADs (arbol binario de decision), implementacion
+        de arboles de decision de Spark MLlib, simulacion
 *******************************************/
 ```
 
